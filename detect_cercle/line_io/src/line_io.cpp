@@ -1,5 +1,5 @@
 #define OPENCV_NOT_USE
-#define LINE_IO_DEBUG_MODE
+// #define LINE_IO_DEBUG_MODE
 
 #include <math.h>
 #include <iostream>
@@ -155,7 +155,12 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   float robot_theta;
   success = lsd_detect(msg, &robot_theta);
 
-  if (var::color == 'B')
+  ros::Time end = ros::Time::now();
+
+  if ( 0 == success )
+  {
+    // 直線検出に成功してる.
+ if (var::color == 'B')
   {
 
   }
@@ -163,12 +168,10 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   {
     robot_theta += M_PI;
   }
-
-  ros::Time end = ros::Time::now();
-
-  if ( 0 == success )
-  {
-    // 直線検出に成功してる.
+  else
+    {
+      return;
+}
 
     if (robot_theta < var::theta - param::allow_err || var::theta + param::allow_err < robot_theta)
     {
