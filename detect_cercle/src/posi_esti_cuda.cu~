@@ -1,0 +1,183 @@
+#include "my_def.h"
+#include "line_detect_cuda.h"
+#include <cuda.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <math_functions.h>
+#include <time.h>
+
+__global__ void make_graph(float *ranges_d, int *list_d, const int min, const float angle_min, const float angle_increment, const float theta_min, const float theta_wid, const int theta_num, const float rho_min, const float rho_wid, const int rho_num){
+  const int i = blockIdx.x, j = threadIdx.x;
+  //blockIdx.x…LRFの何個目の距離情報か threadIdx.x…何個目のthetaか
+
+  const float rad = (min + i)*angle_increment + angle_min;
+  //rad…LRFが取得した距離情報の角度情報
+  float sinx, cosx;
+  __sincosf(rad, &sinx, &cosx);
+  //sin(rad)とcos(rad)を同時取得
+  const float x = ranges_d[i + min] * cosx;
+  const float y = ranges_d[i + min] * sinx;
+  //ブロックごとにある点の距離データを割り当て
+
+  float theta = theta_min + theta_wid*j;
+  //ハフ変換する際のtheta
+  __sincosf(theta, &sinx, &cosx);
+  //sin(theta)とcos(theta)を同時取得
+  int rho = (int)round(__fdividef((x*cosx + y*sinx - rho_min) , rho_wid));
+  //ハフ変換する際のrho
+  int flag = (rho<rho_num&&rho >= 0)?1:0;
+  //rhoの位置が範囲内かどうか…範囲内true,範囲外false
+  list_d[j*rho_num + rho*flag] += flag;
+  //theta-rho分布の完成
+}
+
+__global__ void find_line(int *list_d, int *line_d, int *head_d, const int near_theta,const int near_rho, const float theta_min, const float theta_wid, const int theta_num, const float rho_min, const float rho_wid, const int rho_num, const int thr){
+  const int i = blockIdx.x, j = threadIdx.x;
+  //blockIdx.x…何個目のthetaか threadIdx.x…何個目のrhoか
+  const int pos = i*rho_num + j;
+  //theta-rhoグラフの位置に該当する配列の番号
+  const int val = list_d[pos];
+  //
+  const int theta_start = i - near_theta;
+  const int theta_end = i + near_theta;
+  const int rho_start = j - near_rho<0 ? 0 : j - near_rho;
+  const int rho_end = j + near_rho >= rho_num ? rho_num - 1 : j + near_rho;
+  //範囲情報を元に探索するthetaの範囲とrhoの範囲を決定
+  int count = 0;
+  for (int k = theta_start; k <= theta_end; k++){
+    for (int l = rho_start; l <= rho_end; l++){
+      const int compare_pos = k >= 0 ? (k >= theta_num ? (k%theta_num)*rho_num + (rho_num - l) : k*rho_num + l) : (k%theta_num + theta_num)*rho_num + (rho_num - l);
+      //thetaは0-piまでだがそれをオーバーしても0-piの範囲に戻させる。その際rhoは反転する。
+      const int com=list_d[compare_pos];
+      const bool count_flag=(val < com)||(val==com&&pos<compare_pos);
+      count += count_flag?1:0;
+    }
+  }
+  bool flag = count==0;
+  //極大の時true、それ以外flase
+  flag = flag&&list_d[pos]>thr;
+  //閾値を考慮
+  int f = (int)flag;
+  if (f == 1){
+    int my_head = head_d[0]++;
+    line_d[my_head * 2] = i;
+    line_d[my_head * 2 + 1] = j;
+  }
+  //f==1なら書き込み
+  return;
+}
+
+void line_detect_cuda(float ranges[LRF_DATA],const int n_min,const int n_max,const float angle_increment,const float angle_min,const float theta_min,const float theta_wid,const int theta_num,const float rho_min,const float rho_wid,const int rho_num,const int near_theta,const int near_rho,const int thr){
+  
+  const int num = n_max - n_min + 1;
+  /*
+    clock_t start, end;
+    時間計測用
+    以下使い方
+    start = clock();
+    hogehoge;
+    end = clock();
+    printf("time:%d[ms]¥n", end - start);
+  */
+  printf("num:%d,theta_num:%d,rho_num:%d\n", num, theta_num, rho_num);
+
+  if (theta_num>1024 || n_min<0 || num>1024 || rho_num>1024){
+   printf("return");
+   return;
+  }
+  //gpuの可能並列化数を超えていたらreturn
+
+  float *ranges_d;
+  cudaMalloc((void**)&ranges_d, LRF_DATA*sizeof(float));
+  cudaMemcpy(ranges_d, ranges, LRF_DATA*sizeof(float), cudaMemcpyHostToDevice);
+  //device用のLRF距離情報
+
+  int *list;
+  list = (int*)malloc(theta_num*rho_num*sizeof(int));
+  if (list == NULL)return;
+  //theta-rhoグラフ
+
+  for (int i = 0; i < theta_num*rho_num; i++)list[i] = 0;
+  //theta-rhoグラフ初期化
+
+
+  int *list_d;
+  cudaMalloc((void**)&list_d, theta_num*rho_num*sizeof(int));
+  cudaMemcpy(list_d, list, theta_num*rho_num * sizeof(int), cudaMemcpyHostToDevice);
+
+  //デバイス用theta-rhoグラフ
+
+  dim3 blocks_1(num, 1, 1);
+  dim3 threads_1(theta_num,1,1);
+  //並列化
+
+
+  make_graph << <blocks_1, threads_1 >> >(ranges_d, list_d, n_min, angle_min, angle_increment, theta_min, theta_wid, theta_num, rho_min, rho_wid, rho_num);
+  //theta-rhoグラフ作成
+  /*
+    theta-rhoグラフを表示
+    cudaMemcpy(list, list_d, theta_num*rho_num * sizeof(int), cudaMemcpyDeviceToHost);
+    //list情報をホストに
+
+    for (int i = 0; i < theta_num; i++){
+    printf("theta=%d:", i);
+    for (int j = 0; j < rho_num; j++){
+    if (list[i*rho_num + j] >= 5)printf("rho=%d,%d ",j, list[i*rho_num + j]);
+    }
+    printf("\n");
+    }
+  */
+
+  int *line;
+  line = (int*)malloc(theta_num*rho_num* 2* sizeof(int));
+  //直線情報
+
+  /*
+  for (int i = 0; i < theta_num*rho_num*2; i++)line[i] = 0;
+  //直線情報初期化
+  */
+
+  int *line_d;
+  cudaMalloc((void**)&line_d, theta_num*rho_num*2 * sizeof(int));
+  cudaMemcpy(line_d, line, theta_num*rho_num *2* sizeof(int), cudaMemcpyHostToDevice);
+  //デバイス用直線情報
+
+  int head[1] = { 0 };
+  int *head_d;
+  cudaMalloc((void**)&head_d, sizeof(int));
+  cudaMemcpy(head_d, head, sizeof(int), cudaMemcpyHostToDevice);
+  //配列書き込み位置取得用グローバルメモリ上変数
+
+  dim3 blocks_2(theta_num, 1, 1);
+  dim3 threads_2(rho_num, 1, 1);
+
+  find_line << <blocks_2, threads_2 >> >(list_d, line_d, head_d, near_theta,near_rho, theta_min, theta_wid, theta_num, rho_min, rho_num, rho_num, thr);
+
+  cudaMemcpy(line, line_d, theta_num*rho_num*2 * sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(head, head_d, sizeof(int), cudaMemcpyDeviceToHost);
+
+  int *find_line;
+  find_line = (int*)malloc(head[0]*2*sizeof(int));
+  memcpy(find_line, line, head[0]*2*sizeof(int));
+  //不必要にでかいlineを使わず必要数だけ保管するfind_line配列を作る
+
+  printf("head:%d\n", head[0]);
+  for (int i = 0; i < head[0]; i++){
+    printf("theta:%f\nrho:%f\n", ((float)find_line[2 * i] * theta_wid + theta_min)/PI*180, (float)find_line[2 * i + 1] * rho_wid + rho_min);
+  }
+  //head[0]に発見した直線の数、find_lineに発見した直線のthetaとrhoを保管してある
+
+  free(list);
+  free(line);
+  cudaFree(ranges_d);
+  cudaFree(list_d);
+  cudaFree(line_d);
+  cudaFree(head_d);
+  free(find_line);
+
+  printf("\n");
+  return;
+
+}

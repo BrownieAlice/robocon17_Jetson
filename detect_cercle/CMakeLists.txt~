@@ -1,0 +1,29 @@
+cmake_minimum_required(VERSION 2.8.3)
+PROJECT (line_detect)
+FIND_PACKAGE(CUDA REQUIRED)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  sensor_msgs
+  std_msgs
+  visualization_msgs
+)
+
+SET(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
+SET (CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
+SET(LIB_TYPE STATIC) 
+
+catkin_package(
+)
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
+
+CUDA_ADD_LIBRARY(LINE_DETECT ${LIB_TYPE} src/line_detect_cuda.cu)
+ADD_EXECUTABLE(line_detect src/line_detect.cpp)
+TARGET_LINK_LIBRARIES(line_detect
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+   LINE_DETECT
+)

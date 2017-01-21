@@ -1,0 +1,4 @@
+#ifndef LINE_DETECT_CUDA
+#define LINE_DETECT_CUDA
+void line_detect_cuda(float ranges[LRF_DATA],int min,int max,float angle_increment,float angle_min,float theta_min,float theta_wid,int theta_num,float rho_min,float rho_wid,int rho_num,int near_theta,int near_rho,int thr);
+#endif
