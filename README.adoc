@@ -1,0 +1,13 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= 17Jetson
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/1/3
+:Revision:  1.0
+
+== やってること
+ROSを用いている.MBから自己位置情報を取得.LRFから受けたデータと,想定されるポールの位置情報を元に現在の自己位置情報をMBに返す.
