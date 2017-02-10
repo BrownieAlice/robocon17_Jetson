@@ -129,8 +129,9 @@ void uart_calc(){
      q=pole_range*sin(pole_rad-theta);
     }
     pole_number=MB_pole;
-
+    p+=0;
     printf("esti_p:%f,esti_q:%f\n",p,q);
+    calc_flag=false;
     ros::spinOnce();
     printf("calc_p:%f,calc_q:%f\n",p,q);
 
@@ -154,7 +155,15 @@ void uart_calc(){
      //poles::polelist[MB_pole].set_esti_posi(p,q);
      poles::polelist[MB_pole].get_esti_posi(&pole_abs_x,&pole_abs_y);
 
-     const float jetson_x=q-pole_abs_y+MB_esti_x,jetson_y=p-pole_abs_x+MB_esti_y;	
+     float jetson_x,jetson_y;
+     if(color=='R'){
+      jetson_x=q-pole_abs_y+MB_esti_x;
+      jetson_y=p-pole_abs_x+MB_esti_y;
+     }else{
+      jetson_x=pole_abs_y-q+MB_esti_x;
+      jetson_y=pole_abs_x-p+MB_esti_y;
+      jetson_y+=0.33;
+     }
 
      put_uart_output(MB_pole,jetson_y,jetson_x);
     }

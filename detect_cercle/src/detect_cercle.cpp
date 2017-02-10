@@ -13,7 +13,7 @@ namespace poles{
 }
 
 namespace{
-  const float rad=0.26/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.01,allow_err1=0.01,allow_err2=0.005;
+  const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.01,allow_err1=0.01,allow_err2=0.005;
   const float x_wid=0.01,y_wid=0.01;
   const int x_num=256,y_num=256;
   const int lrf_begin=29,lrf_end=LRF_DATA-29,lrf_num=lrf_end-lrf_begin+1;
@@ -129,8 +129,9 @@ void uart_calc(){
      q=pole_range*sin(pole_rad-theta);
     }
     pole_number=MB_pole;
-
+    p+=0;
     printf("esti_p:%f,esti_q:%f\n",p,q);
+    calc_flag=false;
     ros::spinOnce();
     printf("calc_p:%f,calc_q:%f\n",p,q);
 
@@ -161,6 +162,7 @@ void uart_calc(){
      }else{
       jetson_x=pole_abs_y-q+MB_esti_x;
       jetson_y=pole_abs_x-p+MB_esti_y;
+      jetson_y+=0.33;
      }
 
      put_uart_output(MB_pole,jetson_y,jetson_x);

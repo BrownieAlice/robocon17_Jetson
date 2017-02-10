@@ -1,0 +1,27 @@
+#include "ros/ros.h"
+#include "detect_cercle/MBinput.h"
+#include "../include/uart_setting.h"
+#include "../include/uart.cpp"
+#include "MB_uart_communication.h"
+
+int main(int argc,char **argv){
+  ros::init(argc,argv,"MB_uart_communication");
+  ros::NodeHandle n;
+  try_connect_MB();
+  
+}
+
+void try_connect_MB(void){
+  /*
+    シリアルポートをオープンできなければ1sおきに再試行し続ける.
+   */
+  int open_success;
+  open_success=open_serial_port(serial_dev);
+  ros::Rate loop_rate(1);
+  while(-1==open_success){
+    ROS_INFO("fail to open serial port.");
+    ROS_INFO("try every 1s to open serial port.\n");
+    open_success=open_serial_port(serial_dev);
+    loop_rate.sleep();
+  }
+}
