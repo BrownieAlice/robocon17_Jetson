@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   MBinput.msg
+  Joutput.msg
 )
 
 generate_messages(
@@ -23,7 +24,7 @@ generate_messages(
 
 
 SET(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
-SET (CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
+SET(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
 SET(LIB_TYPE STATIC) 
 SET(CMAKE_C_FLAGS "-Wall -O3")
 SET(CMAKE_CXX_FLAGS "-Wall -O3")
@@ -36,14 +37,14 @@ include_directories(
 )
 
 
-CUDA_ADD_LIBRARY(CUDA_DETECT ${LIB_TYPE} src/detect_cercle_cuda.cu)
+ CUDA_ADD_LIBRARY(CUDA_DETECT ${LIB_TYPE} src/detect_cercle_cuda.cu)
 
-ADD_EXECUTABLE(cercle_io src/detect_cercle.cpp)
-TARGET_LINK_LIBRARIES(cercle_io
-   ${catkin_LIBRARIES}
-   ${PCL_LIBRARIES}
-   CUDA_DETECT
-)
+ ADD_EXECUTABLE(cercle_io src/detect_cercle.cpp)
+ TARGET_LINK_LIBRARIES(cercle_io
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES}
+    CUDA_DETECT
+ )
 
 ADD_EXECUTABLE(MB_uart_communication uart/src/MB_uart_communication.cpp)
 TARGET_LINK_LIBRARIES(MB_uart_communication

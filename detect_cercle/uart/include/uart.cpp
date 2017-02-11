@@ -10,7 +10,7 @@ static int fd;
 
 //serial port setting
 static struct termios oldtio;
-static unsigned char *receive_buffer; 
+//static unsigned char *receive_buffer; 
 
 int open_serial_port(const char *modem_dev){
   struct termios newtio;
@@ -80,7 +80,8 @@ int put_serial_string(char *s){
 
 unsigned char get_serial_char(){
   unsigned char c;
-  read(fd,(char *)&c,1);
+  ssize_t result;
+  result=read(fd,(char *)&c,1);
   return c;
 }
 
