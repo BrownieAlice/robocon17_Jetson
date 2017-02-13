@@ -1,13 +1,13 @@
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
-#include "../include/uart_setting.h"
 #include "../include/uart.cpp"
 #include "MB_uart_communication.h"
 #include <stdint.h>
 
 namespace{
   bool uart_flag=false;
+  // uart接続ができているかどうか.
 }
 
 int main(int argc,char **argv){
@@ -18,7 +18,8 @@ int main(int argc,char **argv){
   ros::Subscriber Jdata_sub = n.subscribe("Jdata",5,subscribe_Jdata);
   // 処理されたデータをMBに引き渡すためにこちらに渡す.
 
-  uart_flag=try_connect_MB();
+  try_connect_MB();
+  uart_flag=true;
   // uart接続が正しく出来ているかどうかを格納する.
 
   while(ros::ok()){
@@ -27,20 +28,25 @@ int main(int argc,char **argv){
     if(false==uart_flag){
       // uart接続が切れていたら接続し直す.
       ROS_INFO("MB is disconnected.\n");
-      uart_flag=try_connect_MB();
+      try_connect_MB();
+      uart_flag=true;
     }
     ros::Rate loop_rate(main_loop_hz);
     // ループ周期を規定
 
     int8_t MB_pole=0,color=0;
     float x=0,y=0,theta=0;
-    bool success=false;
+    int success;
     // MBからデータを受け取るための変数.
 
-    get_uart_input(&MB_pole,&color,&x,&y,&theta,&success);
+    success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
     // MBからデータを受け取る.
-    publish_MBdata(MB_pole,color,x,y,theta,success,MBdata_pub);
-    // MBからのデータをメイン処理プロセスに引き渡す.
+    if(1==success){
+      publish_MBdata(MB_pole,color,x,y,theta,success,MBdata_pub);
+      // MBからのデータをメイン処理プロセスに引き渡す.
+    }else if(-1==success){
+      uart_flag=false;
+    }
 
     ros::spinOnce();
     // 処理されたデータを受け取るコールバック関数の呼び出しが可能なら行われる.
@@ -48,65 +54,34 @@ int main(int argc,char **argv){
     }
 }
 
-bool try_connect_MB(void){
+int try_connect_MB(void){
   /*
-    シリアルポートをオープンできなければ周波数 connect_loop_hz で再試行し続ける.
+    シリアルポートをオープンできなければ connect_loop_ns [ns]で再試行し続ける.
    */
-  int open_success;
-  // シリアルポートが開けたかどうかを格納する.
 
-  open_success=open_serial_port(serial_dev);
-  // シリアルポートオープン
-
-  ros::Rate loop_rate(connect_loop_hz);
-  // ループ周期を規定
-
-  while(-1==open_success){
-    // シリアルポートが開けなかった時のループ.
-
-    ROS_INFO("fail to open serial port.");
-    ROS_INFO("try %dHz to open serial port.\n",connect_loop_hz);
-    open_success=open_serial_port(serial_dev);
-    loop_rate.sleep();
-    // 一定周期で再接続を試み続ける.
-
-  }
-  return true;
+   continue_connect_uart(connect_loop_ns,serial_dev);
+   return(0);
   // ここに来れていたら必ずポートをオープンで来てる.
 }
 
-void get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta,bool *success){
+int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta){
   //  MBからのデータを受け取る.
+  int flag;
+  unsigned char data[8];
+  flag=get_MB_data('X',data,sizeof(data),5000);
 
-  if('X'==get_serial_char()){
-    // 最初の通信文字を検知したら処理を開始.
-
-    const unsigned char n=get_serial_char();
-    *MB_pole=(int8_t)n;
-    const unsigned char c=get_serial_char();
-    *color=(int8_t)c;
-    const unsigned char xl=get_serial_char();
-    const unsigned char xh=get_serial_char();
-    *x=(float)((int16_t)(xl|xh<<8))/1000;
-    const unsigned char yl=get_serial_char();
-    const unsigned char yh=get_serial_char();
-    *y=(float)((int16_t)(yl|yh<<8))/1000;
-    const unsigned char tl=get_serial_char();
-    const unsigned char th=get_serial_char();
-    const int theta_i=(int)((int16_t)(tl|th<<8));
+  if(1==flag){
+    *MB_pole=(int8_t)data[0];
+    *color=(int8_t)data[1];
+    *x=(float)((int16_t)(data[2]|data[3]<<8))/1000;
+    *y=(float)((int16_t)(data[4]|data[5]<<8))/1000;
+    const int theta_i=(int)((int16_t)(data[6]|data[7]<<8));
     *theta=(float)theta_i/100.0/180*M_PI;
-
-    const unsigned char calc_sum=n+c+xl+xh+yl+yh+tl+th;
-    const unsigned char calc_val=get_serial_char();
-
-    if(calc_val!=calc_sum){
-      ROS_INFO("checksum is invalid\n");
-      *success=false;
-    }
-    else{
-      *success=true;
-    }
+    return 1;
+  }else{
+    return flag;
   }
+
 }
 
 void publish_MBdata(int8_t MB_pole,int8_t color,float x,float y,float theta,bool success,ros::Publisher MBdata_pub){
