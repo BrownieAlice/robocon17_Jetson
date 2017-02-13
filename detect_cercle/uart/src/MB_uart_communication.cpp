@@ -10,11 +10,23 @@ namespace{
   // uart接続ができているかどうか.
 
   const unsigned int main_loop_hz=25;
+  // mainループの周期[Hz].
   const long connect_loop_ns=1000000;
+  // 再接続周期[ns].
   const long uart_wait_ns=5000000;
+  // uartが何も文字を取得しなかった時に待つ秒数[ns].
   const long timeout_us=100000;
+  // read/writeでタイムアウトとみなす秒数[us].
   const int timeout_lim=5;
+  // 連続タイムアウトを切断されたとみなす回数.
+  const int zero_lim=10;
+  // uartが何も文字を連続で取得しなかった時に切断されたとみなす回数.
   const char *serial_dev="/dev/ttyUSB_MB";
+  // シリアルポート名.
+  int16_t ucharToint16(unsigned char data1,unsigned char data2){
+    // 2つのunsigned char型を1つのint16_t型にする.
+    return (int16_t)((uint16_t)data1)|((uint16_t)data2<<8);
+  }
 }
 
 int main(int argc,char **argv){
@@ -32,9 +44,9 @@ int main(int argc,char **argv){
   while(ros::ok()){
     // メインループ
 
-
     if(false==uart_flag){
       // uart接続が切れていたら接続し直す.
+
       ROS_INFO("MB is disconnected.\n");
       try_connect_MB();
       uart_flag=true;
@@ -46,26 +58,48 @@ int main(int argc,char **argv){
     float x=0,y=0,theta=0;
     int success;
     // MBからデータを受け取るための変数.
+
     success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
     // MBからデータを受け取る.
+
+    static int zero_counter=0;
+    // uartが何回連続で何の値も取得できなかったか.
+
     if(1==success){
+      // MBからのデータ受け取り成功時.
+
+      zero_counter=0;
       publish_MBdata(MB_pole,color,x,y,theta,success,MBdata_pub);
       // MBからのデータをメイン処理プロセスに引き渡す.
+
     }else if(-1==success){
+      // MBからのデータ受け取り時にエラー発生.
+
+      zero_counter=0;
       uart_flag=false;
+    }else if(0==success){
+      // MBからデータを受け取れなかった時.
+      // USBの線が抜けると0を出力する.-1じゃないのできちんとぬけ出すための処理が必要.
+
+      zero_counter++;
+      if(zero_lim<zero_counter){
+        //規定の回数以上uartが何の値も取得できなかった.
+
+        printf("[uart]maybe removed port.");
+        zero_counter=0;
+        uart_flag=false;
+      }
     }
-    //ROS_INFO("success:%d\n",success);
 
     ros::spinOnce();
     // 処理されたデータを受け取るコールバック関数の呼び出しが可能なら行われる.
-    //loop_rate.sleep();
     }
 }
 
 int try_connect_MB(void){
   /*
-    シリアルポートをオープンできなければ connect_loop_ns [ns]で再試行し続ける.
-   */
+  シリアルポートをオープンできなければ connect_loop_ns [ns]で再試行し続ける.
+  */
 
    continue_connect_uart(connect_loop_ns,serial_dev);
    return(0);
@@ -74,16 +108,17 @@ int try_connect_MB(void){
 
 int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta){
   //  MBからのデータを受け取る.
-  int flag;
   unsigned char data[8];
+  int flag;
   flag=get_MB_data('X',data,sizeof(data),uart_wait_ns,timeout_us,timeout_lim);
+  // MBからのデータ受け取り.
+
   if(1==flag){
     *MB_pole=(int8_t)data[0];
     *color=(int8_t)data[1];
-    *x=(float)((int16_t)(data[2]|data[3]<<8))/1000;
-    *y=(float)((int16_t)(data[4]|data[5]<<8))/1000;
-    const int theta_i=(int)((int16_t)(data[6]|data[7]<<8));
-    *theta=(float)theta_i/100.0/180*M_PI;
+    *x=(float)ucharToint16(data[2],data[3])/1000;
+    *y=(float)ucharToint16(data[4],data[5])/1000;
+    *theta=(float)ucharToint16(data[6],data[7])/1000;
     return 1;
   }else{
     return flag;
@@ -92,6 +127,7 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
 }
 
 void publish_MBdata(int8_t MB_pole,int8_t color,float x,float y,float theta,bool success,ros::Publisher MBdata_pub){
+  // MBからのデータを発行する.
   if(success){
     detect_cercle::MBinput MBinfo;
 

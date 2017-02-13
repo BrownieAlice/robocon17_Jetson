@@ -11,26 +11,28 @@
 
 namespace{
   int fd;
-  // filediscripter
+  // ファイルディスクリプタ.
 
   bool open_fd=false;
 
   struct termios oldtio;
-  // 前のシリアルポート設定の保持用
+  // 前のシリアルポート設定の保持用.
 
   bool get_old_tio=false;
+  // 前のシリアルポート設定を保持できているか.
 
   struct termios newtio;
-  // 新しいシリアルポート設定用
+  // 新しいシリアルポート設定用.
 
   fd_set readfs;
-  // ディスクリプション集合体の宣言
+  // ディスクリプション集合体の宣言.
 
   struct timeval timeout;
-  // タイムアウト値
+  // タイムアウト値の格納.
 
   void init_newtio(){
-    // 新しいシリアルポートのtermiousの初期設定
+    // 新しいシリアルポートのtermiousの初期設定.
+
     static bool flag=false;
     // 1度だけ実行するため.
     if(true==flag){
@@ -52,7 +54,7 @@ namespace{
     newtio.c_cc[VTIME] = 0;
     newtio.c_cc[VMIN] = 1;
     //Now clean the modem line and activate the settings for the port
-    // 新しいシリアルポート情報
+    // 新しいシリアルポート情報.
 
     flag=true;
   }
@@ -81,29 +83,29 @@ namespace{
     tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
 
     if(0==result){
-      // 新規文字列なし
+      // 新規文字列なし.
 
       nanosleep(&wait,NULL);
       tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
     }
 
     if(0==result){
-      // 新規文字列なし
+      // 新規文字列なし.
 
       return(0);
     }else if(-1==result){
-      // エラー
+      // エラー.
 
       return(-1);
     }else{
-      // 正常取得
+      // 正常取得.
 
       *s=tmp_char;
       return(1);
     }
   }
 
-  // 無名名前区間終わり
+  // 無名名前区間終わり.
 }
 
 int open_serial_port(const char *modem_dev){
@@ -113,9 +115,10 @@ int open_serial_port(const char *modem_dev){
   */
 
   init_newtio();
+  // 新しいシリアルポート情報を初期化.
 
   int success;
-  // 戻り地を格納
+  // 戻り地を格納.
 
   if(false==open_fd){
     // filediscripterを入手していなかった時
@@ -127,18 +130,18 @@ int open_serial_port(const char *modem_dev){
   }
 
   if(fd==-1){
-    // オープンできなかった時の処理
+    // オープンできなかった時の処理.
 
     perror("[uart]can't open serial port.");
     close_serial_port();
     return(-1);
   }else{
-    // オープンできた時の処理
+    // オープンできた時の処理.
 
     success=tcgetattr(fd,&oldtio);
     // 前のシリアルポート設定を退避
     if(-1==success){
-      // 前のシリアルポート設定を入手できなかった時
+      // 前のシリアルポート設定を入手できなかった時.
       get_old_tio=false;
 
       perror("[uart]can't get oldtio.");
@@ -167,22 +170,23 @@ int open_serial_port(const char *modem_dev){
         close_serial_port();
         return(-1);
       }else{
-        // 設定できた時
+        // 設定できた時.
 
         struct termios tmptio;
-        // 一時出来なデータ用
+        // 一時出来なデータ用.
         success=tcgetattr(fd,&tmptio);
-        // 今の設定を入手
+        // 今の設定を入手.
         if(-1==success){
-          // 入手できなかった時
+          // 入手できなかった時.
 
           perror("[uart]can't get newtio.");
           close_serial_port();
           return(-1);
         }else{
-          // 入手出来た時
+          // 入手出来た時.
           success=compare_termious(&newtio,&tmptio);
           if(-1==success){
+            // 望み通りに書き込めてないポート情報が存在した時.
             printf("[uart]can't set newtio correctly.\n");
             close_serial_port();
             return(-1);
@@ -190,7 +194,7 @@ int open_serial_port(const char *modem_dev){
         }
       }
     }
-
+    // 正常にポートを開くことができた時.
     open_fd=true;
     printf("[uart]success to open serial port.\n");
     return(0);
@@ -269,40 +273,51 @@ unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_li
   }
 
   FD_ZERO(&readfs);
-  // ディスクリプション集合初期化
+  // ディスクリプション集合初期化.
 
   FD_SET(fd, &readfs);
-  // ファイルディスクリプタを登録
+  // ファイルディスクリプタを登録.
 
   timeout.tv_sec = 0;
   timeout.tv_usec = timeout_us;
-  // タイムアウト値を設定
+  // タイムアウト値を設定.
 
   int time_select;
   time_select=select(fd + 1, &readfs, NULL, NULL, &timeout);
+  // ファイルディスクリプタを監視し,エラー時は-1を,タイムアウトなら0を,読み書きできる状態ならそれ以外の値を返す.
 
+  static int timeout_count=0;
+  // タイムアウトが何回連続で生じたかを計測する.
   if(-1==time_select){
+    // エラー時.
+    timeout_count=0;
+
     perror("[uart]select error.\n");
     *result=-1;
     return(c);
   }else if(0==time_select){
-    static int timeout_count=0;
-    printf("[uart]timeout.\n");
-    *result=0;
+    // タイムアウト時
     timeout_count++;
+
+    printf("[uart]read timeout.\n");
+    *result=0;
     if(timeout_lim<timeout_count){
+      // 指定回数以上タイムアウトした時.エラーを返す用にする.
+      printf("[uart]timeouted too many times.");
       *result=-1;
       timeout_count=0;
     }
     return(c);
+  }else{
+    timeout_count=0;
   }
   *result=read(fd,(char *)&c,1);
 
   /*
   resultには1,0,-1のどれかが格納される.
   1なら1文字ゲット出来たことを表す.
-  0ならなにもゲットできなかったことを表す.
-  -1ならエラーがおきたことを表す.
+  0ならなにもゲットできなかった(タイムアウト,ポート消失を含む)ことを表す.
+  -1ならエラー(規定回数以上のタイムアウトを含む)がおきたことを表す.
   */
   return(c);
 }
@@ -328,21 +343,21 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
   while(continue_loop){
     tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
     if(0==result){
-      // 新規文字列なし
+      // 新規文字列なし.
 
       return(0);
     }else if(-1==result){
-      // エラー
+      // エラー.
 
       close_serial_port();
       return(-1);
     }else{
       if(init==tmp_char){
-        // 初期文字を検出
+        // 初期文字を検出.
 
         continue_loop=false;
       }else{
-      // 他の文字を検出
+      // 他の文字を検出.
 
         continue_loop=true;
       }
@@ -355,32 +370,32 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
     success=get_and_wait_char(&data[i],wait,timeout_us,timeout_lim);
 
     if(-1==success){
-      // エラー
+      // エラー.
 
       close_serial_port();
       return(-1);
     }else if(0==success){
-      // 新規文字なし
+      // 新規文字なし.
 
       return(0);
     }else{
-      // チェックサムを計算
+      // チェックサムを計算.
       checksum+=data[i];
     }
 
   }
 
-  // チェックサムを取得
+  // チェックサムを取得.
   unsigned char get_checksum;
   int success;
   success=get_and_wait_char(&get_checksum,wait,timeout_us,timeout_lim);
 
   if(0==success){
-    // 新規文字列なし
+    // 新規文字列なし.
 
     return(0);
   }else if(-1==success){
-    // エラー
+    // エラー.
 
     close_serial_port();
     return(-1);
@@ -388,7 +403,7 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
 
   // 正常取得
   if(checksum!=get_checksum){
-    // チェックサムが不正
+    // チェックサムが不正.
     printf("[uart]checksum is invalid\n");
     return(0);
   }else{
@@ -398,13 +413,19 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
 }
 
 void continue_connect_uart(long int loop,const char *modem_dev){
+  // uart接続が成功するまでループし続ける.
+
   bool continue_loop=true;
+  // ループの可否.
+
   int success;
   struct timespec wait;
   wait.tv_sec=0;
   wait.tv_nsec=loop;
+  // ループ周期.
 
   close_serial_port();
+  // 一度ポートを閉じる.
 
   while(continue_loop){
     success=open_serial_port(modem_dev);
@@ -413,6 +434,7 @@ void continue_connect_uart(long int loop,const char *modem_dev){
       break;
     }
     nanosleep(&wait,NULL);
+    // スリープ
   }
 
 }
