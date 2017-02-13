@@ -23,11 +23,88 @@ namespace{
   struct termios newtio;
   // 新しいシリアルポート設定用
 
+  fd_set readfs;
+  // ディスクリプション集合体の宣言
+
+  struct timeval timeout;
+  // タイムアウト値
+
+  void init_newtio(){
+    // 新しいシリアルポートのtermiousの初期設定
+    static bool flag=false;
+    // 1度だけ実行するため.
+    if(true==flag){
+      return;
+    }
+    /*
+    Settings for new port
+    CS8:8n1(8bit,no parity,1 stopbit)
+    CLOCAL:local connection,no modem control
+    CREAD:enable receiving characters
+    */
+    newtio.c_cflag=BAUDRATE|CS8|CLOCAL|CREAD;
+    //IGNPAR:ignore bytes with parity errors
+    newtio.c_iflag = IGNPAR;
+    newtio.c_oflag = 0;
+    newtio.c_lflag = 0;
+    newtio.c_line=0;
+    memset(newtio.c_cc,0,sizeof(newtio.c_cc));
+    newtio.c_cc[VTIME] = 0;
+    newtio.c_cc[VMIN] = 1;
+    //Now clean the modem line and activate the settings for the port
+    // 新しいシリアルポート情報
+
+    flag=true;
+  }
+
+  int compare_termious(const struct termios *settio_p,const struct termios *nowtio_p){
+    /*
+    2つのtermious型を比べる.
+    等しければ0を,等しくなければ-1を返す.
+    */
+
+    bool equal=(settio_p->c_cflag==nowtio_p->c_cflag)&&(settio_p->c_iflag==nowtio_p->c_iflag)&&(settio_p->c_oflag==nowtio_p->c_oflag)&&(settio_p->c_lflag==nowtio_p->c_lflag)&&(settio_p->c_line==nowtio_p->c_line);
+
+    int arr_equal;
+    arr_equal=memcmp(settio_p->c_cc,nowtio_p->c_cc,sizeof(settio_p->c_cc));
+    if(0!=arr_equal){
+      equal=false;
+    }
+
+    return(equal==true?0:-1);
+  }
+
+  int get_and_wait_char(unsigned char *s,struct timespec wait,long int timeout_us,int timeout_lim){
+    unsigned char tmp_char;
+    ssize_t result;
+
+    tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
+
+    if(0==result){
+      // 新規文字列なし
+
+      nanosleep(&wait,NULL);
+      tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
+    }
+
+    if(0==result){
+      // 新規文字列なし
+
+      return(0);
+    }else if(-1==result){
+      // エラー
+
+      return(-1);
+    }else{
+      // 正常取得
+
+      *s=tmp_char;
+      return(1);
+    }
+  }
+
+  // 無名名前区間終わり
 }
-
-
-
-
 
 int open_serial_port(const char *modem_dev){
   /*
@@ -35,30 +112,13 @@ int open_serial_port(const char *modem_dev){
   正常に開けたら0を,開けなければ-1を返す.
   */
 
-  /*
-    Settings for new port
-    CS8:8n1(8bit,no parity,1 stopbit)
-    CLOCAL:local connection,no modem control
-    CREAD:enable receiving characters
-  */
-  newtio.c_cflag=BAUDRATE|CS8|CLOCAL|CREAD;
-  //IGNPAR:ignore bytes with parity errors
-  newtio.c_iflag = IGNPAR;
-  newtio.c_oflag = 0;
-  newtio.c_lflag = 0;
-  newtio.c_line=0;
-  memset(newtio.c_cc,0,sizeof(newtio.c_cc));
-  newtio.c_cc[VTIME] = 0;
-  newtio.c_cc[VMIN] = 1;
-  //Now clean the modem line and activate the settings for the port
-  // 新しいシリアルポート情報
-
+  init_newtio();
 
   int success;
   // 戻り地を格納
 
   if(false==open_fd){
-    //filediscripterを入手していなかった時
+    // filediscripterを入手していなかった時
 
     fd=open(modem_dev,O_RDWR|O_NOCTTY);
     /*
@@ -98,7 +158,6 @@ int open_serial_port(const char *modem_dev){
         return(-1);
       }
 
-
       success=tcsetattr(fd,TCSANOW,&newtio);
       // 新しいシリアルポート設定
       if(-1==success){
@@ -121,8 +180,7 @@ int open_serial_port(const char *modem_dev){
           close_serial_port();
           return(-1);
         }else{
-          // 入手出来た時.
-
+          // 入手出来た時
           success=compare_termious(&newtio,&tmptio);
           if(-1==success){
             printf("[uart]can't set newtio correctly.\n");
@@ -137,23 +195,6 @@ int open_serial_port(const char *modem_dev){
     printf("[uart]success to open serial port.\n");
     return(0);
   }
-}
-
-int compare_termious(const struct termios *settio_p,const struct termios *nowtio_p){
-  /*
-  2つのtermious型を比べる.
-  等しければ0を,等しくなければ-1を返す.
-  */
-
-  bool equal=(settio_p->c_cflag==nowtio_p->c_cflag)&&(settio_p->c_iflag==nowtio_p->c_iflag)&&(settio_p->c_oflag==nowtio_p->c_oflag)&&(settio_p->c_lflag==nowtio_p->c_lflag)&&(settio_p->c_line==nowtio_p->c_line);
-
-  int arr_equal;
-  arr_equal=memcmp(settio_p->c_cc,nowtio_p->c_cc,sizeof(settio_p->c_cc));
-  if(0!=arr_equal){
-    equal=false;
-  }
-
-  return(equal==true?0:-1);
 }
 
 void close_serial_port(void){
@@ -205,12 +246,13 @@ int put_serial_string(char *s){
   if(write(fd,s,strlen(s)) != (int)strlen(s)){
     printf("[uart]fail to put serial.\n");
     return(-1);
+  }else{
+    return(0);
   }
-  return(0);
 }
 
 
-unsigned char get_serial_char(ssize_t *result){
+unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_lim){
   /*
   1文字取得する.
   resultに失敗/成功が格納される.
@@ -226,7 +268,36 @@ unsigned char get_serial_char(ssize_t *result){
     return(c);
   }
 
+  FD_ZERO(&readfs);
+  // ディスクリプション集合初期化
+
+  FD_SET(fd, &readfs);
+  // ファイルディスクリプタを登録
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = timeout_us;
+  // タイムアウト値を設定
+
+  int time_select;
+  time_select=select(fd + 1, &readfs, NULL, NULL, &timeout);
+
+  if(-1==time_select){
+    perror("[uart]select error.\n");
+    *result=-1;
+    return(c);
+  }else if(0==time_select){
+    static int timeout_count=0;
+    printf("[uart]timeout.\n");
+    *result=0;
+    timeout_count++;
+    if(timeout_lim<timeout_count){
+      *result=-1;
+      timeout_count=0;
+    }
+    return(c);
+  }
   *result=read(fd,(char *)&c,1);
+
   /*
   resultには1,0,-1のどれかが格納される.
   1なら1文字ゲット出来たことを表す.
@@ -236,7 +307,7 @@ unsigned char get_serial_char(ssize_t *result){
   return(c);
 }
 
-int get_MB_data(char init,unsigned char *data,size_t num,long int loop){
+int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int timeout_us,int timeout_lim){
   /*
   MBからシリアル通信をしてデータを取得する.
   成功したら1,エラーは-1,新規文字列なしまたはチェックサムエラーは0.
@@ -255,9 +326,7 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop){
   }
 
   while(continue_loop){
-    // 初期文字を検出するループ
-
-    tmp_char=get_serial_char(&result);
+    tmp_char=get_serial_char(&result,timeout_us,timeout_lim);
     if(0==result){
       // 新規文字列なし
 
@@ -272,65 +341,52 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop){
         // 初期文字を検出
 
         continue_loop=false;
+      }else{
+      // 他の文字を検出
+
+        continue_loop=true;
       }
-    }
-  }
-
-  for(size_t i=0;i<num;i++){
-    tmp_char=get_serial_char(&result);
-
-    if(0==result){
-      // 新規文字列なし
-
-      nanosleep(&wait,NULL);
-      tmp_char=get_serial_char(&result);
-    }
-
-    if(0==result){
-      // 新規文字列なし
-
-      return(0);
-    }else if(-1==result){
-      // エラー
-
-      close_serial_port();
-      return(-1);
-    }else{
-      // 正常取得
-      data[i]=tmp_char;
     }
   }
 
   unsigned char checksum=0;
   for(size_t i=0;i<num;i++){
-    // チェックサムを計算
-    checksum+=data[i];
+    int success;
+    success=get_and_wait_char(&data[i],wait,timeout_us,timeout_lim);
+
+    if(-1==success){
+      // エラー
+
+      close_serial_port();
+      return(-1);
+    }else if(0==success){
+      // 新規文字なし
+
+      return(0);
+    }else{
+      // チェックサムを計算
+      checksum+=data[i];
+    }
+
   }
 
   // チェックサムを取得
   unsigned char get_checksum;
-  tmp_char=get_serial_char(&result);
+  int success;
+  success=get_and_wait_char(&get_checksum,wait,timeout_us,timeout_lim);
 
-  if(0==result){
-    // 新規文字列なし
-
-    nanosleep(&wait,NULL);
-    tmp_char=get_serial_char(&result);
-  }
-
-  if(0==result){
+  if(0==success){
     // 新規文字列なし
 
     return(0);
-  }else if(-1==result){
+  }else if(-1==success){
     // エラー
 
     close_serial_port();
     return(-1);
   }
-  // 正常取得
-  get_checksum=tmp_char;
 
+  // 正常取得
   if(checksum!=get_checksum){
     // チェックサムが不正
     printf("[uart]checksum is invalid\n");
@@ -352,7 +408,7 @@ void continue_connect_uart(long int loop,const char *modem_dev){
 
   while(continue_loop){
     success=open_serial_port(modem_dev);
-    if(1==success){
+    if(0==success){
       continue_loop=false;
       break;
     }

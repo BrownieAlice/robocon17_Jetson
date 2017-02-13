@@ -8,6 +8,13 @@
 namespace{
   bool uart_flag=false;
   // uart接続ができているかどうか.
+
+  const unsigned int main_loop_hz=25;
+  const long connect_loop_ns=1000000;
+  const long uart_wait_ns=5000000;
+  const long timeout_us=100000;
+  const int timeout_lim=5;
+  const char *serial_dev="/dev/ttyUSB_MB";
 }
 
 int main(int argc,char **argv){
@@ -25,6 +32,7 @@ int main(int argc,char **argv){
   while(ros::ok()){
     // メインループ
 
+
     if(false==uart_flag){
       // uart接続が切れていたら接続し直す.
       ROS_INFO("MB is disconnected.\n");
@@ -38,7 +46,6 @@ int main(int argc,char **argv){
     float x=0,y=0,theta=0;
     int success;
     // MBからデータを受け取るための変数.
-
     success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
     // MBからデータを受け取る.
     if(1==success){
@@ -47,6 +54,7 @@ int main(int argc,char **argv){
     }else if(-1==success){
       uart_flag=false;
     }
+    //ROS_INFO("success:%d\n",success);
 
     ros::spinOnce();
     // 処理されたデータを受け取るコールバック関数の呼び出しが可能なら行われる.
@@ -68,8 +76,7 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
   //  MBからのデータを受け取る.
   int flag;
   unsigned char data[8];
-  flag=get_MB_data('X',data,sizeof(data),5000);
-
+  flag=get_MB_data('X',data,sizeof(data),uart_wait_ns,timeout_us,timeout_lim);
   if(1==flag){
     *MB_pole=(int8_t)data[0];
     *color=(int8_t)data[1];
@@ -96,7 +103,7 @@ void publish_MBdata(int8_t MB_pole,int8_t color,float x,float y,float theta,bool
     MBinfo.get_time=ros::Time::now();
 
     MBdata_pub.publish(MBinfo);
-    ROS_INFO("MBdata::MB_pole:%d,color:%d,x:%f,y:%f,theta:%f\n",(int)MB_pole,(int)color,x,y,theta);
+    ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f\n",(int)MB_pole,(char)color,x,y,theta);
   }
 }
 
