@@ -322,11 +322,16 @@ unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_li
   return(c);
 }
 
-int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int timeout_us,int timeout_lim){
+int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int timeout_us,int timeout_lim,int zero_lim){
   /*
   MBからシリアル通信をしてデータを取得する.
   成功したら1,エラーは-1,新規文字列なしまたはチェックサムエラーは0.
   numには初期文字もチェックサムも含めない文字数.
+  timeout_usはreadする際にタイムアウトする時間[us].
+  timeout_limは連続で何回タイムアウトしたら切断されているとみなすかどうかの回数.
+  (MBの電源が切れるとタイムアウトを繰り返す.)
+  zero_limは連続で何回何も文字を取得できなかったら切断されているとみなすかどうかの回数.
+  (途中でケーブルが抜かれると何も取得できないを繰り返す.)
   */
 
   unsigned char tmp_char;
@@ -335,9 +340,12 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
   struct timespec wait;
   wait.tv_sec=0;
   wait.tv_nsec=loop;
+  static int zero_counter=0;
+  // uartが何回連続で何の値も取得できなかったか.
 
   if(0==num){
-    return(0);
+    zero_counter++;
+    return(zero_lim<zero_counter?zero_counter=0,-1:0);
   }
 
   while(continue_loop){
@@ -345,7 +353,8 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
     if(0==result){
       // 新規文字列なし.
 
-      return(0);
+      zero_counter++;
+      return(zero_lim<zero_counter?zero_counter=0,-1:0);
     }else if(-1==result){
       // エラー.
 
@@ -377,12 +386,12 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
     }else if(0==success){
       // 新規文字なし.
 
-      return(0);
+      zero_counter++;
+      return(zero_lim<zero_counter?zero_counter=0,-1:0);
     }else{
       // チェックサムを計算.
       checksum+=data[i];
     }
-
   }
 
   // チェックサムを取得.
@@ -393,13 +402,17 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
   if(0==success){
     // 新規文字列なし.
 
-    return(0);
+    zero_counter++;
+    return(zero_lim<zero_counter?-1:0);
   }else if(-1==success){
     // エラー.
 
     close_serial_port();
     return(-1);
   }
+
+  zero_counter=0;
+  // ゼロカウンタを0に.
 
   // 正常取得
   if(checksum!=get_checksum){

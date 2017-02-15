@@ -62,33 +62,20 @@ int main(int argc,char **argv){
     success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
     // MBからデータを受け取る.
 
-    static int zero_counter=0;
-    // uartが何回連続で何の値も取得できなかったか.
-
     if(1==success){
       // MBからのデータ受け取り成功時.
 
-      zero_counter=0;
       publish_MBdata(MB_pole,color,x,y,theta,success,MBdata_pub);
       // MBからのデータをメイン処理プロセスに引き渡す.
 
     }else if(-1==success){
       // MBからのデータ受け取り時にエラー発生.
 
-      zero_counter=0;
       uart_flag=false;
     }else if(0==success){
       // MBからデータを受け取れなかった時.
-      // USBの線が抜けると0を出力する.-1じゃないのできちんとぬけ出すための処理が必要.
 
-      zero_counter++;
-      if(zero_lim<zero_counter){
-        //規定の回数以上uartが何の値も取得できなかった.
 
-        printf("[uart]maybe removed port.");
-        zero_counter=0;
-        uart_flag=false;
-      }
     }
 
     ros::spinOnce();
@@ -110,7 +97,7 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
   //  MBからのデータを受け取る.
   unsigned char data[8];
   int flag;
-  flag=get_MB_data('X',data,sizeof(data),uart_wait_ns,timeout_us,timeout_lim);
+  flag=get_MB_data('X',data,sizeof(data),uart_wait_ns,timeout_us,timeout_lim,zero_lim);
   // MBからのデータ受け取り.
 
   if(1==flag){
