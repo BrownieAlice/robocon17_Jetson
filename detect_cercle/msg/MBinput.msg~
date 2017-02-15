@@ -1,4 +1,4 @@
-int32 MB_pole
+int8 MB_pole
 int8 color
 float64 x
 float64 y

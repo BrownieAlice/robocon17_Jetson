@@ -2,10 +2,10 @@
 #define MB_UART
 
 int try_connect_MB(void);
-int get_uart_input(int8_t *,int8_t *,float *,float *,float *);
-void publish_MBdata(int8_t,int8_t,float,float,float,bool,ros::Publisher);
+int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta);
+void publish_MBdata(const int8_t MB_pole,const int8_t color,const float x,const float y,const float theta,const bool success,const ros::Publisher MBdata_pub);
 void subscribe_Jdata(const detect_cercle::Joutput&);
-bool uart_output(int8_t,float,float);
+int uart_output(const int8_t MB_pole,const float x,const float y,const ros::Time stamp);
 
 #ifndef M_PI
 #define M_PI 3.1415

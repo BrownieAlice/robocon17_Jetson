@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   visualization_msgs
   message_generation
+  roslint
 )
 
 add_message_files(
@@ -22,6 +23,7 @@ generate_messages(
   std_msgs
 )
 
+roslint_cpp()
 
 # SET(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
 # SET(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
@@ -49,5 +51,10 @@ include_directories(
 
 ADD_EXECUTABLE(MB_uart_communication uart/src/MB_uart_communication.cpp)
 TARGET_LINK_LIBRARIES(MB_uart_communication
+   ${catkin_LIBRARIES}
+)
+
+ADD_EXECUTABLE(test_pub_data test_pub_data/test_pub_data.cpp)
+TARGET_LINK_LIBRARIES(test_pub_data
    ${catkin_LIBRARIES}
 )

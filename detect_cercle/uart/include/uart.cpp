@@ -76,7 +76,7 @@ namespace{
     return(equal==true?0:-1);
   }
 
-  int get_and_wait_char(unsigned char *s,struct timespec wait,long int timeout_us,int timeout_lim){
+  int get_and_wait_char(unsigned char *s,struct timespec wait,const long int timeout_us,const int timeout_lim){
     unsigned char tmp_char;
     ssize_t result;
 
@@ -132,7 +132,7 @@ int open_serial_port(const char *modem_dev){
   if(fd==-1){
     // オープンできなかった時の処理.
 
-    perror("[uart]can't open serial port.");
+    perror("[uart]can't open serial port.\n");
     close_serial_port();
     return(-1);
   }else{
@@ -144,7 +144,7 @@ int open_serial_port(const char *modem_dev){
       // 前のシリアルポート設定を入手できなかった時.
       get_old_tio=false;
 
-      perror("[uart]can't get oldtio.");
+      perror("[uart]can't get oldtio.\n");
       close_serial_port();
       return(-1);
     }else{
@@ -156,7 +156,7 @@ int open_serial_port(const char *modem_dev){
       if(-1==success){
         // 前の入出力が終わらなかった時.
 
-        perror("[uart]can't end old flush.");
+        perror("[uart]can't end old flush.\n");
         close_serial_port();
         return(-1);
       }
@@ -166,7 +166,7 @@ int open_serial_port(const char *modem_dev){
       if(-1==success){
         // 設定書き込みができなかった時.
 
-        perror("[uart]can't set newtio.");
+        perror("[uart]can't set newtio.\n");
         close_serial_port();
         return(-1);
       }else{
@@ -179,7 +179,7 @@ int open_serial_port(const char *modem_dev){
         if(-1==success){
           // 入手できなかった時.
 
-          perror("[uart]can't get newtio.");
+          perror("[uart]can't get newtio.\n");
           close_serial_port();
           return(-1);
         }else{
@@ -220,7 +220,7 @@ void close_serial_port(void){
 }
 
 
-int put_serial_char(unsigned char c){
+int put_serial_char(const unsigned char c,const size_t size,const long int timeout_us,const long timeout_lim){
   /*
   1文字送る.
   失敗したら-1を成功したら0を返す.
@@ -230,6 +230,45 @@ int put_serial_char(unsigned char c){
     printf("[uart]filediscripter is invalid.\n");
     return(-1);
   }
+
+  FD_ZERO(&readfs);
+  // ディスクリプション集合初期化.
+
+  FD_SET(fd, &readfs);
+  // ファイルディスクリプタを登録.
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = timeout_us;
+  // タイムアウト値を設定.
+
+  int time_select;
+  time_select=select(fd + 1, &readfs, NULL, NULL, &timeout);
+  // ファイルディスクリプタを監視し,エラー時は-1を,タイムアウトなら0を,読み書きできる状態ならそれ以外の値を返す.
+
+  static int timeout_count=0;
+  // タイムアウトが何回連続で生じたかを計測する.
+  if(-1==time_select){
+    // エラー時.
+    timeout_count=0;
+
+    perror("[uart]select error.\n");
+    return(-1);
+  }else if(0==time_select){
+    // タイムアウト時
+    timeout_count++;
+
+    printf("[uart]write timeout.\n");
+    if(timeout_lim<timeout_count){
+      // 指定回数以上タイムアウトした時.エラーを返す用にする.
+      printf("[uart]timeouted too many times.\n");
+      timeout_count=0;
+      return(-1);
+    }
+    return(0);
+  }else{
+    timeout_count=0;
+  }
+
   if(write(fd,&c,1) != 1){
     printf("[uart]fail to put serial.\n");
     return(-1);
@@ -238,16 +277,59 @@ int put_serial_char(unsigned char c){
 }
 
 
-int put_serial_string(char *s){
+
+int put_serial_string(const char *s,const size_t size,const long int timeout_us,const long timeout_lim){
   /*
   文字列を送る.
+  文字列s,文字列の長さsize
   失敗したら-1を成功したら0を返す.
   */
   if(false==open_fd){
     printf("[uart]filediscripter is invalid.\n");
     return(-1);
   }
-  if(write(fd,s,strlen(s)) != (int)strlen(s)){
+
+  FD_ZERO(&readfs);
+  // ディスクリプション集合初期化.
+
+  FD_SET(fd, &readfs);
+  // ファイルディスクリプタを登録.
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = timeout_us;
+  // タイムアウト値を設定.
+
+  int time_select;
+  time_select=select(fd + 1, &readfs, NULL, NULL, &timeout);
+  // ファイルディスクリプタを監視し,エラー時は-1を,タイムアウトなら0を,読み書きできる状態ならそれ以外の値を返す.
+
+  static int timeout_count=0;
+  // タイムアウトが何回連続で生じたかを計測する.
+  if(-1==time_select){
+    // エラー時.
+    timeout_count=0;
+
+    perror("[uart]select error.\n");
+    return(-1);
+  }else if(0==time_select){
+    // タイムアウト時
+    timeout_count++;
+
+    printf("[uart]write timeout.\n");
+    if(timeout_lim<timeout_count){
+      // 指定回数以上タイムアウトした時.エラーを返す用にする.
+      printf("[uart]timeouted too many times.\n");
+      timeout_count=0;
+      return(-1);
+    }
+    return(0);
+  }else{
+    timeout_count=0;
+  }
+
+  const ssize_t write_retrun = write(fd,s,size);
+  if(write_retrun!=(ssize_t)size){
+    // 処理系依存動作
     printf("[uart]fail to put serial.\n");
     return(-1);
   }else{
@@ -255,8 +337,37 @@ int put_serial_string(char *s){
   }
 }
 
+int put_Jdata(const char init,const char *s,const size_t size,const long int timeout_us,const long int timeout_lim){
+  /*
+  JetsonからMBにデータを送信する.
+  initは初期通信文字.
+  sは送る文字の中身(初期文字,チェックサム含まず).
+  sizeはsの長さ.
+  */
+  char *data=(char *)malloc(size+2);
+  if(NULL==data){
+    printf("[uart]fail to get memory.\n");
+    return(-1);
+  }
+  data[0]=init;
 
-unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_lim){
+  unsigned char checksum=0;
+  for(size_t i=0;i<size;i++){
+    data[i+1]=s[i];
+    checksum+=(unsigned char)s[i];
+    // 処理系依存動作
+  }
+
+  data[size+1]=checksum;
+
+  int success;
+  success=put_serial_string(data,size+2,timeout_us,timeout_lim);
+  free(data);
+  return(success);
+}
+
+
+unsigned char get_serial_char(ssize_t *result,const long int timeout_us,const int timeout_lim){
   /*
   1文字取得する.
   resultに失敗/成功が格納される.
@@ -303,7 +414,7 @@ unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_li
     *result=0;
     if(timeout_lim<timeout_count){
       // 指定回数以上タイムアウトした時.エラーを返す用にする.
-      printf("[uart]timeouted too many times.");
+      printf("[uart]timeouted too many times.\n");
       *result=-1;
       timeout_count=0;
     }
@@ -322,7 +433,7 @@ unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_li
   return(c);
 }
 
-int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int timeout_us,int timeout_lim,int zero_lim){
+int get_MB_data(const char init,unsigned char *data,const size_t num,const long int loop,const long int timeout_us,const int timeout_lim,const int zero_lim){
   /*
   MBからシリアル通信をしてデータを取得する.
   成功したら1,エラーは-1,新規文字列なしまたはチェックサムエラーは0.
@@ -425,7 +536,7 @@ int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int 
 
 }
 
-void continue_connect_uart(long int loop,const char *modem_dev){
+void continue_connect_uart(const long int loop,const char *modem_dev){
   // uart接続が成功するまでループし続ける.
 
   bool continue_loop=true;

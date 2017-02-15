@@ -3,11 +3,12 @@
 
 int open_serial_port(const char *modem_dev);
 void close_serial_port(void);
-int put_serial_char(unsigned char c);
-int put_serial_string(char *s);
-unsigned char get_serial_char(ssize_t *result,long int timeout_us,int timeout_lim);
-int get_MB_data(char init,unsigned char *data,size_t num,long int loop,long int timeout_us,int timeout_lim,int zero_lim);
-void continue_connect_uart(long int loop,const char *modem_dev);
+int put_serial_char(const unsigned char c,const size_t size,const long int timeout_us,const long timeout_lim);
+int put_serial_string(const char *s,const size_t size,const long int timeout_us,const long timeout_lim);
+unsigned char get_serial_char(ssize_t *result,const long int timeout_us,const int timeout_lim);
+int get_MB_data(const char init,unsigned char *data,const size_t num,const long int loop,const long int timeout_us,const int timeout_lim,const int zero_lim);
+void continue_connect_uart(const long int loop,const char *modem_dev);
+int put_Jdata(const char init,const char *s,const size_t size,const long int timeout_us,const long int timeout_lim);
 
 #define BAUDRATE B115200
 

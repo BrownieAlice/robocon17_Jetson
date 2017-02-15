@@ -23,18 +23,24 @@ namespace{
   // uartが何も文字を連続で取得しなかった時に切断されたとみなす回数.
   const char *serial_dev="/dev/ttyUSB_MB";
   // シリアルポート名.
+
+  const int late_ms=500;
+
   int16_t ucharToint16(unsigned char data1,unsigned char data2){
     // 2つのunsigned char型を1つのint16_t型にする.
     return (int16_t)((uint16_t)data1)|((uint16_t)data2<<8);
+    /*
+    処理系依存
+    */
   }
 }
 
 int main(int argc,char **argv){
   ros::init(argc,argv,"MB_uart_communication");
   ros::NodeHandle n;
-  ros::Publisher MBdata_pub = n.advertise<detect_cercle::MBinput>("MBdata", 5);
+  ros::Publisher MBdata_pub = n.advertise<detect_cercle::MBinput>("MBdata", 1);
   // MBから受け取ったデータをメイン処理プロセスに引き渡す.
-  ros::Subscriber Jdata_sub = n.subscribe("Jdata",5,subscribe_Jdata);
+  ros::Subscriber Jdata_sub = n.subscribe("Jdata",1,subscribe_Jdata);
   // 処理されたデータをMBに引き渡すためにこちらに渡す.
 
   try_connect_MB();
@@ -47,7 +53,7 @@ int main(int argc,char **argv){
     if(false==uart_flag){
       // uart接続が切れていたら接続し直す.
 
-      ROS_INFO("MB is disconnected.\n");
+      ROS_INFO("MB is disconnected.");
       try_connect_MB();
       uart_flag=true;
     }
@@ -113,7 +119,7 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
 
 }
 
-void publish_MBdata(int8_t MB_pole,int8_t color,float x,float y,float theta,bool success,ros::Publisher MBdata_pub){
+void publish_MBdata(const int8_t MB_pole,const int8_t color,const float x,const float y,const float theta,const bool success,const ros::Publisher MBdata_pub){
   // MBからのデータを発行する.
   if(success){
     detect_cercle::MBinput MBinfo;
@@ -123,33 +129,56 @@ void publish_MBdata(int8_t MB_pole,int8_t color,float x,float y,float theta,bool
     MBinfo.x=x;
     MBinfo.y=y;
     MBinfo.theta=theta;
-    MBinfo.get_time=ros::Time::now();
+    MBinfo.stamp=ros::Time::now();
 
     MBdata_pub.publish(MBinfo);
-    ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f\n",(int)MB_pole,(char)color,x,y,theta);
+    ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)MB_pole,(char)color,x,y,theta);
   }
 }
 
 void subscribe_Jdata(const detect_cercle::Joutput& Jdata){
-  uart_flag=uart_output(Jdata.MB_pole,Jdata.x,Jdata.y);
+  int success;
+  success=uart_output(Jdata.MB_pole,Jdata.x,Jdata.y,Jdata.stamp);
+  uart_flag=0==success?true:false;
 }
 
-bool uart_output(int8_t MB_pole,float x,float y){
+int uart_output(const int8_t MB_pole,const float x,const float y,const ros::Time stamp){
     int16_t send_x=(int)(x*1000);
     int16_t send_y=(int)(y*1000);
     char X_L=(char)send_x;
-    char X_H=(char)(send_x>>8);
+    char X_H=(char)((uint16_t)send_x>>8);
     char Y_L=(char)send_y;
-    char Y_H=(char)(send_y>>8);
+    char Y_H=(char)((uint16_t)send_y>>8);
+    /*
+    処理系依存動作
+    */
 
-    int i=0;
+    char *data=(char *)malloc(5);
+    if(NULL==data){
+      return(-1);
+    }
 
-    i+=put_serial_char('X');
-    i+=put_serial_char(X_H);
-    i+=put_serial_char(X_L);
-    i+=put_serial_char(Y_H);
-    i+=put_serial_char(Y_L);
-    i+=put_serial_char((char)MB_pole+X_H+X_L+Y_H+Y_L);
-    ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f",(int)MB_pole,x,y);
-    return i==0?true:false;
+    ros::Duration diff=ros::Time::now()-stamp;
+
+    if(late_ms<diff.sec*1000+diff.nsec/1000000){
+      ROS_INFO("too late data.");
+      return(0);
+    }
+
+    data[0]=MB_pole;
+    data[1]=X_H;
+    data[2]=X_L;
+    data[3]=Y_H;
+    data[4]=Y_L;
+
+    int success;
+
+    success=put_Jdata('X',data,5,timeout_us,timeout_lim);
+
+    if(0==success){
+      ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f",(int)MB_pole,x,y);
+    }
+
+    free(data);
+    return success;
 }
