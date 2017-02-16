@@ -1,18 +1,17 @@
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
-#include "../include/uart.cpp"
-#include "MB_uart_communication.h"
+#include "../lib/uart.cpp"
+#include "../include/MB_uart_communication.h"
 #include <stdint.h>
 
 namespace{
   bool uart_flag=false;
   // uart接続ができているかどうか.
-
   const unsigned int main_loop_hz=25;
   // mainループの周期[Hz].
-  const long connect_loop_ns=1000000;
-  // 再接続周期[ns].
+  const long connect_loop_hz=1000;
+  // 再接続周期[Hz].
   const long uart_wait_ns=5000000;
   // uartが何も文字を取得しなかった時に待つ秒数[ns].
   const long timeout_us=100000;
@@ -43,10 +42,6 @@ int main(int argc,char **argv){
   ros::Subscriber Jdata_sub = n.subscribe("Jdata",1,subscribe_Jdata);
   // 処理されたデータをMBに引き渡すためにこちらに渡す.
 
-  try_connect_MB();
-  uart_flag=true;
-  // uart接続が正しく出来ているかどうかを格納する.
-
   while(ros::ok()){
     // メインループ
 
@@ -54,49 +49,54 @@ int main(int argc,char **argv){
       // uart接続が切れていたら接続し直す.
 
       ROS_INFO("MB is disconnected.");
-      try_connect_MB();
-      uart_flag=true;
+      const int open_result=open_serial_port(serial_dev);
+      // ポートを開ける
+
+      if(1==open_result){
+        uart_flag=true;
+      }else{
+        uart_flag=false;
+      }
+
+      ros::Rate loop_rate(connect_loop_hz);
+      // ループ周期を規定
+       loop_rate.sleep();
+    }else{
+      // すでにuart接続ができている.
+      ros::Rate loop_rate(main_loop_hz);
+      // ループ周期を規定
+
+      int8_t MB_pole=0,color=0;
+      float x=0,y=0,theta=0;
+      int success;
+      // MBからデータを受け取るための変数.
+
+      success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
+      // MBからデータを受け取る.
+
+      switch (success) {
+        case 1:
+          // MBからのデータ受け取り成功時.
+
+          publish_MBdata(MB_pole,color,x,y,theta,MBdata_pub);
+          // MBからのデータをメイン処理プロセスに引き渡す.
+          ros::spinOnce();
+          // 処理されたデータを受け取るコールバック関数の呼び出しが可能なら行われる.
+          break;
+        case 0:
+          // MBからデータを受け取れなかった時.
+          break;
+        case -1:
+          // 受け取り時にエラー発生.
+          uart_flag=false;
+          break;
+        default :
+          break;
+      }
+
+      loop_rate.sleep();
     }
-    ros::Rate loop_rate(main_loop_hz);
-    // ループ周期を規定
-
-    int8_t MB_pole=0,color=0;
-    float x=0,y=0,theta=0;
-    int success;
-    // MBからデータを受け取るための変数.
-
-    success=get_uart_input(&MB_pole,&color,&x,&y,&theta);
-    // MBからデータを受け取る.
-
-    if(1==success){
-      // MBからのデータ受け取り成功時.
-
-      publish_MBdata(MB_pole,color,x,y,theta,success,MBdata_pub);
-      // MBからのデータをメイン処理プロセスに引き渡す.
-
-    }else if(-1==success){
-      // MBからのデータ受け取り時にエラー発生.
-
-      uart_flag=false;
-    }else if(0==success){
-      // MBからデータを受け取れなかった時.
-
-
-    }
-
-    ros::spinOnce();
-    // 処理されたデータを受け取るコールバック関数の呼び出しが可能なら行われる.
-    }
-}
-
-int try_connect_MB(void){
-  /*
-  シリアルポートをオープンできなければ connect_loop_ns [ns]で再試行し続ける.
-  */
-
-   continue_connect_uart(connect_loop_ns,serial_dev);
-   return(0);
-  // ここに来れていたら必ずポートをオープンで来てる.
+  }
 }
 
 int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta){
@@ -119,41 +119,39 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
 
 }
 
-void publish_MBdata(const int8_t MB_pole,const int8_t color,const float x,const float y,const float theta,const bool success,const ros::Publisher MBdata_pub){
+void publish_MBdata(const int8_t MB_pole,const int8_t color,const float x,const float y,const float theta,const ros::Publisher MBdata_pub){
   // MBからのデータを発行する.
-  if(success){
-    detect_cercle::MBinput MBinfo;
+  detect_cercle::MBinput MBinfo;
 
-    MBinfo.MB_pole=MB_pole;
-    MBinfo.color=color;
-    MBinfo.x=x;
-    MBinfo.y=y;
-    MBinfo.theta=theta;
-    MBinfo.stamp=ros::Time::now();
+  MBinfo.MB_pole=MB_pole;
+  MBinfo.color=color;
+  MBinfo.x=x;
+  MBinfo.y=y;
+  MBinfo.theta=theta;
+  MBinfo.stamp=ros::Time::now();
 
-    MBdata_pub.publish(MBinfo);
-    ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)MB_pole,(char)color,x,y,theta);
-  }
+  MBdata_pub.publish(MBinfo);
+  ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)MB_pole,(char)color,x,y,theta);
 }
 
 void subscribe_Jdata(const detect_cercle::Joutput& Jdata){
   int success;
   success=uart_output(Jdata.MB_pole,Jdata.x,Jdata.y,Jdata.stamp);
-  uart_flag=0==success?true:false;
+  uart_flag=1==success?true:false;
 }
 
 int uart_output(const int8_t MB_pole,const float x,const float y,const ros::Time stamp){
     int16_t send_x=(int)(x*1000);
     int16_t send_y=(int)(y*1000);
-    char X_L=(char)send_x;
-    char X_H=(char)((uint16_t)send_x>>8);
-    char Y_L=(char)send_y;
-    char Y_H=(char)((uint16_t)send_y>>8);
+    unsigned char X_L=(unsigned char)send_x;
+    unsigned char X_H=(unsigned char)((uint16_t)send_x>>8);
+    unsigned char Y_L=(unsigned char)send_y;
+    unsigned char Y_H=(unsigned char)((uint16_t)send_y>>8);
     /*
     処理系依存動作
     */
 
-    char *data=(char *)malloc(5);
+    unsigned char *data=(unsigned char *)malloc(5);
     if(NULL==data){
       return(-1);
     }
@@ -165,7 +163,7 @@ int uart_output(const int8_t MB_pole,const float x,const float y,const ros::Time
       return(0);
     }
 
-    data[0]=MB_pole;
+    data[0]=(unsigned char)MB_pole;
     data[1]=X_H;
     data[2]=X_L;
     data[3]=Y_H;
@@ -175,7 +173,7 @@ int uart_output(const int8_t MB_pole,const float x,const float y,const ros::Time
 
     success=put_Jdata('X',data,5,timeout_us,timeout_lim);
 
-    if(0==success){
+    if(1==success){
       ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f",(int)MB_pole,x,y);
     }
 
