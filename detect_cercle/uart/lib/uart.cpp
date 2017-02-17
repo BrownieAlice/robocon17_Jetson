@@ -69,8 +69,7 @@ namespace{
     bool equal=(settio_p->c_cflag==nowtio_p->c_cflag)&&(settio_p->c_iflag==nowtio_p->c_iflag)&&(settio_p->c_oflag==nowtio_p->c_oflag)&&(settio_p->c_lflag==nowtio_p->c_lflag)&&(settio_p->c_line==nowtio_p->c_line);
     // 2つのtemious構造体の排列以外の要素が等しいかを調べている.
 
-    int arr_equal;
-    arr_equal=memcmp(settio_p->c_cc,nowtio_p->c_cc,sizeof(settio_p->c_cc));
+    const int arr_equal=memcmp(settio_p->c_cc,nowtio_p->c_cc,sizeof(settio_p->c_cc));
     // 配列の要素が全て等しいか調べている.
 
     if(0!=arr_equal){
@@ -85,7 +84,7 @@ namespace{
     1文字取得する.ただし,最初1文字も取得できなかったら指定秒数だけ待機する.
     指定秒数後も取得できなかったら諦める.
     エラーが生じた時は-1を,何も取得できなかった時,タイムアウトは0を,きちんと取得できた時は1を返す.
-    引数は,1つめが取得した文字を格納するchar型のポインタ,2つめは待機する時間(timespec構造体),3つめはタイムアウトとみなす時間,4つめはタイムアウトを何回したら切断されるとみなすかの回数.
+    引数は,1つめが取得した文字を格納するunsigned char型のポインタ,2つめは待機する時間(timespec構造体),3つめはタイムアウトとみなす時間,4つめはタイムアウトを何回したら切断されるとみなすかの回数.
     */
 
     unsigned char tmp_char;
@@ -120,6 +119,7 @@ namespace{
       default :
         printf("invalid argument get_and_wait_char()\n");
         return(-1);
+        break;
     }
   }
 
@@ -160,7 +160,7 @@ namespace{
       case -1:
         // エラー時.
         *timeout_count=0;
-        perror("[uart]select error.\n");
+        perror("[uart]select error.");
         return(-1);
         break;
       case 0:
@@ -168,7 +168,7 @@ namespace{
         (*timeout_count)++;
         printf("[uart]%s timeout.\n",s);
         if(timeout_lim<(*timeout_count)){
-          // 指定回数以上タイムアウトした時.エラーを返す用にする.
+          // 指定回数以上タイムアウトした時.エラーを返すようにする.
           printf("[uart]timeouted too many times.\n");
           *timeout_count=0;
           return(-1);
@@ -214,7 +214,7 @@ int open_serial_port(const char *modem_dev){
   if(fd==-1){
     // オープンできなかった時の処理.
 
-    perror("[uart]can't open serial port.\n");
+    perror("[uart]can't open serial port.");
     close_serial_port();
     return(-1);
   }
@@ -225,7 +225,7 @@ int open_serial_port(const char *modem_dev){
   // 前のシリアルポート設定を入手できなかった時.
     get_old_tio=false;
 
-    perror("[uart]can't get oldtio.\n");
+    perror("[uart]can't get oldtio.");
     close_serial_port();
     return(-1);
   }
@@ -236,7 +236,7 @@ int open_serial_port(const char *modem_dev){
   if(-1==success){
     // 前の入出力が終わらなかった時.
 
-    perror("[uart]can't end old flush.\n");
+    perror("[uart]can't end old flush.");
     close_serial_port();
     return(-1);
   }
@@ -246,7 +246,7 @@ int open_serial_port(const char *modem_dev){
   if(-1==success){
     // 設定書き込みができなかった時.
 
-    perror("[uart]can't set newtio.\n");
+    perror("[uart]can't set newtio.");
     close_serial_port();
     return(-1);
   }
@@ -258,7 +258,7 @@ int open_serial_port(const char *modem_dev){
   if(-1==success){
     // 入手できなかった時.
 
-    perror("[uart]can't get newtio.\n");
+    perror("[uart]can't get newtio.");
     close_serial_port();
     return(-1);
   }

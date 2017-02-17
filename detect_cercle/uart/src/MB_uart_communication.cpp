@@ -109,6 +109,7 @@ int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta)
   if(1==flag){
     *MB_pole=(int8_t)data[0];
     *color=(int8_t)data[1];
+    // 処理系依存動作
     *x=(float)ucharToint16(data[2],data[3])/1000;
     *y=(float)ucharToint16(data[4],data[5])/1000;
     *theta=(float)ucharToint16(data[6],data[7])/1000;

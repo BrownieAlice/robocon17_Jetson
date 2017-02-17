@@ -58,3 +58,8 @@ ADD_EXECUTABLE(test_pub_data test_pub_data/test_pub_data.cpp)
 TARGET_LINK_LIBRARIES(test_pub_data
    ${catkin_LIBRARIES}
 )
+
+ADD_EXECUTABLE(test_sub_data test_sub_data/test_sub_data.cpp)
+TARGET_LINK_LIBRARIES(test_sub_data
+   ${catkin_LIBRARIES}
+)
