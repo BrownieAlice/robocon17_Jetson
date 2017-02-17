@@ -11,3 +11,44 @@
 
 == やってること
 ROSを用いている.MBから自己位置情報を取得.LRFから受けたデータと,想定されるポールの位置情報を元に現在の自己位置情報をMBに返す.
+
+== デバイス設定
+=== デバイス名の固定
+ここではMBとはuartを用いて通信しているが,USB接続した際のデバイスファイル名が変わってしまうととても扱いづらい.そのためデバイス名を固定する.参考サイトはlink:http://qiita.com/caad1229/items/309be550441515e185c0[udevでデバイス名を固定する - Qiita]やlink:http://qiita.com/osada9000/items/3e6ff429ba782624def1[デバイス名を固定する - Qiita].実行環境はUbuntu16.04 LTS. +
+まず実際に通信する際に用いるシリアル変換モジュールをUSBポートにさす.そして `lsusb` コマンドで接続情報を表示.それで例えば以下のように表示される.
+[source,UNIX]
+----
+$ lsusb
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 001 Device 003: ID 056e:00e6 Elecom Co., Ltd
+Bus 001 Device 002: ID 1038:1607 SteelSeries ApS
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+----
+それで目的のUSB BUSのBUS番号とDevice番号を調べる.多分,(ここには載ってないけど) "`uart`" とか書いてあるはず.ここでは "`SteelSeries ApS`" がそうだとして話をすすめる.そして,更に詳しい情報を表示する.
+[source,UNIX]
+----
+$ lsusb -s 001:002 -v
+
+Bus 001 Device 002: ID 1038:1607 SteelSeries ApS
+      :
+  idVendor           0x1038 SteelSeries ApS
+  idProduct          0x1607
+      :
+----
+長いので必要な情報以外は省略した.ここでは "`idVendor`" と "`idProduct`" の番号がわかれば良い.その後, "`/etc/udev/rules.d/99-local.rules`" に次のように書き足せば良い.
+[source,UNIX]
+----
+$ sudo emacs /etc/udev/rules.d/99-local.rules
+
+#for MB
+KERNEL=="ttyUSB*",  ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1607", SYMLINK+="ttyUSB_MB"
+----
+これで,シリアル通信の際には "`/dev/ttyUSB_MB`" にアクセスすれば良くなった.
+
+=== ユーザーアカウント情報を変更
+ただし,このままだと普通の状態なら,シリアル通信を行うプログラムをroot権限で起動するか, "`chmod`" コマンドでアクセス権を変更してやらないと "`Permission denied`" と言われてしまう.でもそれを毎回やるのは面倒くさいので,ユーザーのアカウント情報を変更して,素のままでもアクセスできるようにする.参考サイトはlink:http://unix.stackexchange.com/questions/14354/read-write-to-a-serial-port-without-root[Read/Write to a Serial Port Without Root?]. +
+[source,UNIX]
+----
+$ sudo usermod -a -G dialout ユーザーネーム
+----
+としてやればよい.ユーザーネームは実際のユーザーネームに変えて行って.Jetsonならデフォルトでは "`ubuntu`" のはず.
