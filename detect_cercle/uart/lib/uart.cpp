@@ -1,3 +1,14 @@
+/*
+======================================================================
+Project Name    : uart connection
+File Name       : uart.cpp
+Encoding        : UTF-8
+Creation Date   : 2017/02/27
+
+Copyright © 2017 Alice.
+======================================================================
+*/
+
 #include <stdio.h>
 #include <termios.h>
 #include <sys/signal.h>
@@ -7,19 +18,20 @@
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
-#include "uart.h"
+#include "./uart.h"
 
-namespace{
+namespace
+{
   int fd;
   // ファイルディスクリプタ.
 
-  bool open_fd=false;
+  bool open_fd = false;
   // ファイルディスクリプタを設定できているかどうか.
 
   struct termios oldtio;
   // 前のシリアルポート設定の保持用.
 
-  bool get_old_tio=false;
+  bool get_old_tio = false;
   // 前のシリアルポート設定を保持できているか.
 
   struct termios newtio;
@@ -28,15 +40,17 @@ namespace{
   fd_set readfs;
   // ディスクリプション集合体の宣言.
 
-  void init_newtio(void){
+  void init_newtio(void)
+  {
     /*
     新しいシリアルポートのtermiousの初期設定.
     uart用の設定になっている.
     */
 
-    static bool flag=false;
+    static bool flag = false;
     // 1度だけ実行するため.
-    if(true==flag){
+    if (true == flag)
+    {
       return;
     }
     /*
@@ -45,41 +59,48 @@ namespace{
     CLOCAL:local connection,no modem control
     CREAD:enable receiving characters
     */
-    newtio.c_cflag=BAUDRATE|CS8|CLOCAL|CREAD;
-    //IGNPAR:ignore bytes with parity errors
+    newtio.c_cflag = BAUDRATE|CS8|CLOCAL|CREAD;
+    // IGNPAR:ignore bytes with parity errors
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
     newtio.c_lflag = 0;
-    newtio.c_line=0;
-    memset(newtio.c_cc,0,sizeof(newtio.c_cc));
+    newtio.c_line = 0;
+    memset(newtio.c_cc, 0, sizeof(newtio.c_cc));
     newtio.c_cc[VTIME] = 0;
     newtio.c_cc[VMIN] = 1;
-    //Now clean the modem line and activate the settings for the port
+    // Now clean the modem line and activate the settings for the port
     // 新しいシリアルポート情報.
 
-    flag=true;
+    flag = true;
   }
 
-  int compare_termious(const struct termios *settio_p,const struct termios *nowtio_p){
+  int compare_termious(const struct termios *settio_p, const struct termios *nowtio_p)
+  {
     /*
     2つのtermious構造体を比べる.引数は2つの比べるtemious構造体.
     等しければ0を,等しくなければ-1を返す.
     */
 
-    bool equal=(settio_p->c_cflag==nowtio_p->c_cflag)&&(settio_p->c_iflag==nowtio_p->c_iflag)&&(settio_p->c_oflag==nowtio_p->c_oflag)&&(settio_p->c_lflag==nowtio_p->c_lflag)&&(settio_p->c_line==nowtio_p->c_line);
+    bool equal = (settio_p->c_cflag == nowtio_p->c_cflag);
+    equal = equal && (settio_p->c_iflag == nowtio_p->c_iflag);
+    equal = equal && (settio_p->c_oflag == nowtio_p->c_oflag);
+    equal = equal && (settio_p->c_lflag == nowtio_p->c_lflag);
+    equal = equal && (settio_p->c_line == nowtio_p->c_line);
     // 2つのtemious構造体の排列以外の要素が等しいかを調べている.
 
-    const int arr_equal=memcmp(settio_p->c_cc,nowtio_p->c_cc,sizeof(settio_p->c_cc));
+    const int arr_equal = memcmp(settio_p->c_cc, nowtio_p->c_cc, sizeof(settio_p->c_cc));
     // 配列の要素が全て等しいか調べている.
 
-    if(0!=arr_equal){
-      equal=false;
+    if (0 != arr_equal)
+    {
+      equal = false;
     }
 
-    return(equal==true?0:-1);
+    return(equal == true?0:-1);
   }
 
-  int get_and_wait_char(unsigned char *s,const struct timespec wait,const long int timeout_us,const int timeout_lim){
+  int get_and_wait_char(unsigned char *s, const struct timespec wait, const long int timeout_us, const int timeout_lim)
+  {
     /*
     1文字取得する.ただし,最初1文字も取得できなかったら指定秒数だけ待機する.
     指定秒数後も取得できなかったら諦める.
@@ -92,17 +113,19 @@ namespace{
     int result;
     // 結果を格納する.
 
-    result=get_serial_char(&tmp_char,timeout_us,timeout_lim);
+    result = get_serial_char(&tmp_char, timeout_us, timeout_lim);
 
-    if(0==result){
+    if (0 == result)
+    {
       // 新規文字列なし.
 
-      nanosleep(&wait,NULL);
+      nanosleep(&wait, NULL);
       // 指定時間だけ待機.
-      result=get_serial_char(&tmp_char,timeout_us,timeout_lim);
+      result = get_serial_char(&tmp_char, timeout_us, timeout_lim);
     }
 
-    switch(result){
+    switch (result)
+    {
       case -1:
         // エラー
           return(-1);
@@ -113,7 +136,7 @@ namespace{
         break;
       case 1:
         // 正常取得
-        *s=tmp_char;
+        *s = tmp_char;
         return(1);
         break;
       default :
@@ -123,7 +146,8 @@ namespace{
     }
   }
 
-  int timeout_check(long int timeout_us){
+  int timeout_check(long int timeout_us)
+  {
     /*
     ポートが読み書き可能な常態化チェックする.
     読み書き可能なら1を,タイムアウトしたなら0を,エラーなら1を返す.
@@ -141,43 +165,46 @@ namespace{
     timeout.tv_usec = timeout_us;
     // タイムアウト値を設定.
 
-    const int time_select=select(fd+1,&readfs,NULL,NULL,&timeout);
+    const int time_select = select(fd+1, &readfs, NULL, NULL, &timeout);
     // ファイルディスクリプタを監視し,エラー時は-1を,タイムアウトなら0を,読み書きできる状態ならそれ以外の値を返す.
 
-    const int return_val=time_select>=1?1:time_select;
+    const int return_val = time_select >= 1?1:time_select;
     // 読み書きできる状態の時に1を返すようにする.
 
     return(return_val);
   }
 
-  int timeout_coutinuous_check(const int timeout_result,long int *timeout_count,const long int timeout_lim,const char *s){
+  int timeout_coutinuous_check(const int timeout_result, long int *timeout_count, const long int timeout_lim, const char *s)
+  {
     /*
     何回連続でタイムアウトをしたかカウントする.
     指定の回数以上タイムアウト,エラー,間違った引数の場合-1を,ただのタイムアウトの場合は0を,正常ならば1を返す.
     引数は,タイムアウトしたかどうかの結果,何回連続でタイムアウトをしたかを格納するint型のポインタ,何回のタイムアウトで切断されたとみなすかの回数,タイムアウト時に出力する文字.
     */
-    switch (timeout_result) {
+    switch (timeout_result)
+    {
       case -1:
         // エラー時.
-        *timeout_count=0;
+        *timeout_count = 0;
         perror("[uart]select error.");
         return(-1);
         break;
       case 0:
         // タイムアウト時
         (*timeout_count)++;
-        printf("[uart]%s timeout.\n",s);
-        if(timeout_lim<(*timeout_count)){
+        printf("[uart]%s timeout.\n", s);
+        if (timeout_lim < (*timeout_count))
+        {
           // 指定回数以上タイムアウトした時.エラーを返すようにする.
           printf("[uart]timeouted too many times.\n");
-          *timeout_count=0;
+          *timeout_count = 0;
           return(-1);
         }
         return(0);
         break;
       case 1:
         // 正常時
-        *timeout_count=0;
+        *timeout_count = 0;
         return(1);
         break;
       default :
@@ -188,14 +215,14 @@ namespace{
   }
 
   // 無名名前区間終わり.
-}
+}  // namespace
 
-int open_serial_port(const char *modem_dev){
+int open_serial_port(const char *modem_dev)
+{
   /*
   シリアルポートを開く.
-  正常に開けたら0を,開けなければ-1を返す.
   引数は開くシリアルポート名.
-  正常に開けた時に1,開けなかった時-1にを返す.
+  正常に開けた時に0,開けなかった時-1にを返す.
   */
 
   init_newtio();
@@ -204,14 +231,16 @@ int open_serial_port(const char *modem_dev){
   int success;
   // 戻り地を格納.
 
-  if(false==open_fd){
+  if (false == open_fd)
+  {
     // ファイルディスクリプタを設定していなかった時
 
-    fd=open(modem_dev,O_RDWR|O_NOCTTY);
+    fd = open(modem_dev, O_RDWR|O_NOCTTY);
     // 指定したシリアルポートを開く.読み書き用かつttyとして開く.
   }
 
-  if(fd==-1){
+  if (fd == -1)
+  {
     // オープンできなかった時の処理.
 
     perror("[uart]can't open serial port.");
@@ -219,21 +248,23 @@ int open_serial_port(const char *modem_dev){
     return(-1);
   }
 
-  success=tcgetattr(fd,&oldtio);
+  success = tcgetattr(fd, &oldtio);
   // 前のシリアルポート設定を退避
-  if(-1==success){
+  if (-1 == success)
+  {
   // 前のシリアルポート設定を入手できなかった時.
-    get_old_tio=false;
+    get_old_tio = false;
 
     perror("[uart]can't get oldtio.");
     close_serial_port();
     return(-1);
   }
-  get_old_tio=true;
+  get_old_tio = true;
 
-  success=tcflush(fd,TCIFLUSH);
+  success = tcflush(fd, TCIFLUSH);
   // 前の入出力を終わらせる.
-  if(-1==success){
+  if (-1 == success)
+  {
     // 前の入出力が終わらなかった時.
 
     perror("[uart]can't end old flush.");
@@ -241,9 +272,10 @@ int open_serial_port(const char *modem_dev){
     return(-1);
   }
 
-  success=tcsetattr(fd,TCSANOW,&newtio);
+  success = tcsetattr(fd, TCSANOW, &newtio);
   // 新しいシリアルポート設定
-  if(-1==success){
+  if (-1 == success)
+  {
     // 設定書き込みができなかった時.
 
     perror("[uart]can't set newtio.");
@@ -253,9 +285,10 @@ int open_serial_port(const char *modem_dev){
 
   struct termios tmptio;
   // 一時出来なデータ用.
-  success=tcgetattr(fd,&tmptio);
+  success = tcgetattr(fd, &tmptio);
   // 今の設定を入手.
-  if(-1==success){
+  if (-1 == success)
+  {
     // 入手できなかった時.
 
     perror("[uart]can't get newtio.");
@@ -263,8 +296,9 @@ int open_serial_port(const char *modem_dev){
     return(-1);
   }
 
-  success=compare_termious(&newtio,&tmptio);
-  if(-1==success){
+  success = compare_termious(&newtio, &tmptio);
+  if (-1 == success)
+  {
     // 望み通りに書き込めてないポート情報が存在した時.
 
     printf("[uart]can't set newtio correctly.\n");
@@ -273,12 +307,13 @@ int open_serial_port(const char *modem_dev){
   }
 
   // 正常にポートを開くことができた時.
-  open_fd=true;
+  open_fd = true;
   printf("[uart]success to open serial port.\n");
   return(0);
 }
 
-void close_serial_port(void){
+void close_serial_port(void)
+{
   /*
   シリアルポートを閉じる.
   前のシリアルポート情報を入手出来ていたならそれを設定する.
@@ -286,46 +321,52 @@ void close_serial_port(void){
   */
 
   printf("[uart]close serial port.\n");
-  if(get_old_tio&&open_fd){
-    tcsetattr(fd,TCSANOW,&oldtio);
+  if (get_old_tio && open_fd)
+  {
+    tcsetattr(fd, TCSANOW, &oldtio);
   }
-  if(open_fd){
+  if (open_fd)
+  {
     close(fd);
   }
-  get_old_tio=false;
-  open_fd=false;
+  get_old_tio = false;
+  open_fd = false;
 }
 
 
-int put_serial_char(const unsigned char c,const long int timeout_us,const long int timeout_lim){
+int put_serial_char(const unsigned char c, const long int timeout_us, const long int timeout_lim)
+{
   /*
   1文字送る.
   失敗したら-1を,タイムアウトしたら0を,成功したら1を返す.
   引数は,送る文字,タイムアウトとみなす時間,連続タイムアウト上限数
   */
 
-  if(false==open_fd){
+  if (false == open_fd)
+  {
     printf("[uart]filediscripter is invalid.\n");
     return(-1);
   }
 
-  const int timeout_result=timeout_check(timeout_us);
+  const int timeout_result = timeout_check(timeout_us);
   // シリアルポートに書き込みが可能か確認.
 
-  static long int timeout_count=0;
+  static long int timeout_count = 0;
   // タイムアウトが何回連続で生じたかを格納する変数.
 
-  const int timeout_continuous_result=timeout_coutinuous_check(timeout_result,&timeout_count,timeout_lim,"write");
+  const int timeout_continuous_result = timeout_coutinuous_check(timeout_result, &timeout_count, timeout_lim, "write");
   // タイムアウトが何回連続で生じたかの計測.
 
-  if(1!=timeout_continuous_result){
+  if (1 != timeout_continuous_result)
+  {
     // 正常に文字が書き込みできないなら終了.
     return(timeout_continuous_result);
   }
-  const ssize_t write_result=write(fd,&c,1);
+  const ssize_t write_result = write(fd, &c, 1);
   // 文字を書き込み
 
-  if(1!=write_result){
+  if (1 != write_result)
+  {
     // 正常に文字を書き込めていなかった時.
     printf("[uart]fail to put serial.\n");
     return(-1);
@@ -334,35 +375,39 @@ int put_serial_char(const unsigned char c,const long int timeout_us,const long i
   return(1);
 }
 
-int put_serial_string(const unsigned char *s,const size_t size,const long int timeout_us,const long timeout_lim){
+int put_serial_string(const unsigned char *s, const size_t size, const long int timeout_us, const long timeout_lim)
+{
   /*
   文字列を送る.
   失敗したら-1を,タイムアウトしたら0を,成功したら1を返す.
   引数は,送る文字列,送る文字列の長さ(ヌル文字含まず),タイムアウトとみなす時間,連続タイムアウト上限数
   */
-  if(false==open_fd){
+  if (false == open_fd)
+  {
     printf("[uart]filediscripter is invalid.\n");
     return(-1);
   }
 
-  const int timeout_result=timeout_check(timeout_us);
+  const int timeout_result = timeout_check(timeout_us);
   // シリアルポートに書き込みが可能か確認.
 
-  static long int timeout_count=0;
+  static long int timeout_count = 0;
   // タイムアウトが何回連続で生じたかを格納する変数.
 
-  const int timeout_continuous_result=timeout_coutinuous_check(timeout_result,&timeout_count,timeout_lim,"write");
+  const int timeout_continuous_result = timeout_coutinuous_check(timeout_result, &timeout_count, timeout_lim, "write");
   // タイムアウトが何回連続で生じたかの計測.
 
-  if(1!=timeout_continuous_result){
+  if (1 != timeout_continuous_result)
+  {
     // 正常に文字が書き込みできないなら終了.
     return(timeout_continuous_result);
   }
 
-  const ssize_t write_result=write(fd,s,size);
+  const ssize_t write_result = write(fd, s, size);
   // 文字列を書き込み
 
-  if(write_result!=(ssize_t)size){
+  if (write_result != (ssize_t)size)
+  {
     // 正常に文字を書き込めていなかった時.
     // 処理系依存動作
     printf("[uart]fail to put serial.\n");
@@ -372,7 +417,8 @@ int put_serial_string(const unsigned char *s,const size_t size,const long int ti
   return(1);
 }
 
-int put_Jdata(const char init,const unsigned char *s,const size_t size,const long int timeout_us,const long int timeout_lim){
+int put_Jdata(const char init, const unsigned char *s, const size_t size, const long int timeout_us, const long int timeout_lim)
+{
   /*
   JetsonからMBにデータを送信する.
   initは初期通信文字.
@@ -382,69 +428,76 @@ int put_Jdata(const char init,const unsigned char *s,const size_t size,const lon
   失敗時に-1,タイムアウト時に0,成功時に1を返す.
   */
 
-  unsigned char *data=(unsigned char *)malloc(size+2);
+  unsigned char *data = (unsigned char *)malloc(size+2);
   // 送信用文字列確保
 
-  if(NULL==data){
+  if (NULL == data)
+  {
     // メモリ確保失敗時
     printf("[uart]fail to get memory.\n");
     return(-1);
   }
 
-  data[0]=init;
+  data[0] = init;
   // 初期文字追加
 
-  unsigned char checksum=0;
-  for(size_t i=0;i<size;i++){
-    data[i+1]=s[i];
+  unsigned char checksum = 0;
+  for (size_t i = 0; i < size; i++)
+  {
+    data[i+1] = s[i];
     checksum+=s[i];
   }
 
-  data[size+1]=checksum;
+  data[size+1] = checksum;
 
   int success;
-  success=put_serial_string(data,size+2,timeout_us,timeout_lim);
+  success = put_serial_string(data, size+2, timeout_us, timeout_lim);
   free(data);
   return(success);
 }
 
-int get_serial_char(unsigned char *s,const long int timeout_us,const int timeout_lim){
+int get_serial_char(unsigned char *s, const long int timeout_us, const int timeout_lim)
+{
   /*
   1文字取得する.
   失敗,指定回数以上タイムアウトしたら-1,タイムアウトしたら0,成功したら1を返す.
   引数は,入手した値を格納するchar型のポインタ,タイムアウトとみなす時間,連続タイムアウト上限数.
   */
 
-  if(false==open_fd){
+  if (false == open_fd)
+  {
     printf("[uart]filediscripter is invalid.\n");
     return(-1);
   }
 
-  const int timeout_result=timeout_check(timeout_us);
+  const int timeout_result = timeout_check(timeout_us);
   // シリアルポートに書き込みが可能か確認.
 
-  static long int timeout_count=0;
+  static long int timeout_count = 0;
   // タイムアウトが何回連続で生じたかを格納する変数.
 
-  const int timeout_continuous_result=timeout_coutinuous_check(timeout_result,&timeout_count,timeout_lim,"read");
+  const int timeout_continuous_result = timeout_coutinuous_check(timeout_result, &timeout_count, timeout_lim, "read");
   // タイムアウトが何回連続で生じたかの計測.
 
-  if(1!=timeout_continuous_result){
+  if (1 != timeout_continuous_result)
+  {
     // 正常に文字が取得できないなら終了.
     return(timeout_continuous_result);
   }
 
-  const int read_result=read(fd,s,1);
+  const int read_result = read(fd, s, 1);
   // 文字を取得
 
-  if(-1==read_result){
+  if (-1 == read_result)
+  {
     printf("[uart]read error\n");
   }
 
   return(read_result);
 }
 
-int get_MB_data(const char init,unsigned char *data,const size_t num,const long int loop,const long int timeout_us,const int timeout_lim,const int zero_lim){
+int get_MB_data(const char init, unsigned char *data, const size_t num, const long int loop, const long int timeout_us, const int timeout_lim, const int zero_lim)
+{
   /*
   MBからシリアル通信をしてデータを取得する.
   成功したら1,エラーは-1,新規文字列なし,タイムアウト,チェックサムエラーは0.
@@ -458,63 +511,74 @@ int get_MB_data(const char init,unsigned char *data,const size_t num,const long 
 
   unsigned char tmp_char;
   int result;
-  bool continue_loop=true;
+  bool continue_loop = true;
   struct timespec wait;
-  wait.tv_sec=0;
-  wait.tv_nsec=loop;
-  static int zero_counter=0;
+  wait.tv_sec = 0;
+  wait.tv_nsec = loop;
+  static int zero_counter = 0;
   // uartが何回連続で何の値も取得できなかったか.
 
-  while(continue_loop){
-    result=get_serial_char(&tmp_char,timeout_us,timeout_lim);
-    if(0==result){
+  while (continue_loop)
+  {
+    result = get_serial_char(&tmp_char, timeout_us, timeout_lim);
+    if (0 == result)
+    {
       // 新規文字列なし.
 
       zero_counter++;
-      return(zero_lim<zero_counter?zero_counter=0,-1:0);
-    }else if(-1==result){
+      return(zero_lim < zero_counter ? zero_counter = 0, -1 : 0);
+    }
+    else if (-1 == result)
+    {
       // エラー.
 
-      zero_counter=0;
+      zero_counter = 0;
       close_serial_port();
       return(-1);
-    }else{
+    }
+    else
+    {
       // 何か文字を取得
 
-      zero_counter=0;
+      zero_counter = 0;
 
-      if(init==tmp_char){
+      if (init == tmp_char)
+      {
         // 初期文字を検出.
 
-        continue_loop=false;
-      }else{
+        continue_loop = false;
+      }
+      else
+      {
       // 他の文字を検出.
 
-        continue_loop=true;
+        continue_loop = true;
       }
     }
   }
 
-  unsigned char checksum=0;
-  for(size_t i=0;i<num;i++){
+  unsigned char checksum = 0;
+  for (size_t i = 0; i < num; i++)
+  {
     int success;
-    success=get_and_wait_char(&data[i],wait,timeout_us,timeout_lim);
+    success = get_and_wait_char(&data[i], wait, timeout_us, timeout_lim);
 
-    switch (success) {
+    switch (success)
+    {
       case -1:
         // エラー.
-        zero_counter=0;
+        zero_counter = 0;
         close_serial_port();
         return(-1);
         break;
       case 0:
         // 新規文字なし.
         zero_counter++;
-        return(zero_lim<zero_counter?zero_counter=0,-1:0);
+        return(zero_lim < zero_counter ? zero_counter = 0, -1 : 0);
         break;
       case 1:
         // チェックサムを計算.
-        zero_counter=0;
+        zero_counter = 0;
         checksum+=data[i];
         break;
       default :
@@ -526,29 +590,34 @@ int get_MB_data(const char init,unsigned char *data,const size_t num,const long 
   // チェックサムを取得.
   unsigned char get_checksum;
   int success;
-  success=get_and_wait_char(&get_checksum,wait,timeout_us,timeout_lim);
+  success = get_and_wait_char(&get_checksum, wait, timeout_us, timeout_lim);
 
-  if(0==success){
+  if (0 == success)
+  {
     // 新規文字列なし.
 
     zero_counter++;
-    return(zero_lim<zero_counter?-1:0);
-  }else if(-1==success){
+    return(zero_lim < zero_counter ? -1 : 0);
+  }
+  else if (-1 == success)
+  {
     // エラー.
 
-    zero_counter=0;
+    zero_counter = 0;
     close_serial_port();
     return(-1);
   }
 
   // 正常取得
 
-  if(checksum!=get_checksum){
+  if (checksum != get_checksum)
+  {
     // チェックサムが不正.
     printf("[uart]checksum is invalid\n");
     return(0);
-  }else{
+  }
+  else
+  {
     return(1);
   }
-
 }
