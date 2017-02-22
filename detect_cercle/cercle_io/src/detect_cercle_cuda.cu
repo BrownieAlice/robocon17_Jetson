@@ -1,5 +1,3 @@
-#include "my_def.h"
-#include "detect_cercle_cuda.h"
 #include <cuda.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,17 +7,18 @@
 #include <math_functions.h>
 #include <time.h>
 #include <sys/time.h>
+#include "../include/detect_cercle_cuda.h"
 __global__ void make_xy_data(float *ranges_d,float *xy_data_d,const int lrf_begin,const int lrf_num,const float angle_min,const float angle_increment){
   const int num = blockIdx.x*blockDim.x+threadIdx.x;
   //printf("%d\n",num);
   if(num<lrf_num){
    const float rad = (lrf_begin + num)*angle_increment + angle_min;
    //rad…LRFが取得した距離情報の角度情報
- 
+
    float sinx, cosx;
    __sincosf(rad, &sinx, &cosx);
    //sin(rad)とcos(rad)を同時取得
- 
+
    const float laser_x = ranges_d[num] * cosx;
    const float laser_y = ranges_d[num] * sinx;
    //LRFの距離情報をx-y変換
@@ -29,35 +28,35 @@ __global__ void make_xy_data(float *ranges_d,float *xy_data_d,const int lrf_begi
   }
  return;
 }
-		
+
 __global__ void make_graph(float *xy_data_d, int *list_d, const int lrf_begin, const float angle_min, const float angle_increment,const float x,const float y,const int x_num,const int y_num,const float x_wid,const float y_wid,const float radius){
   const int i = blockIdx.x, j = threadIdx.x;
   //blockIdx.x…LRFの何個目の距離情報か threadIdx.x…何個目のxか
 
   const float rad = (lrf_begin + i)*angle_increment + angle_min;
   //rad…LRFが取得した距離情報の角度情報
-  
+
   const float laser_x = xy_data_d[2*i];
   const float laser_y = xy_data_d[2*i+1];
   //LRFの距離情報をx-y変換
-  
+
   const float x_range=x_num/2*x_wid+rad;
   const float y_range=y_num/2*y_wid+rad;
   const bool flag=laser_x>x-x_range&&laser_x<x+x_range&&laser_y>y-y_range&&laser_y<y+y_range;
   //LRFの距離情報が注目範囲内に収まっているか確認
-  
+
   if(flag){
     //ブロックごとにある点の距離データを割り当て
     const float hough_x=x-x_num/2*x_wid+j*x_wid;
     //ハフ変換する際のx
-    
+
     const float eq=radius*radius-(hough_x-laser_x)*(hough_x-laser_x);
     const float root=eq>=0?sqrt(eq):0;
     const int hough_y_1=(int)(((root+laser_y)-y+y_num/2*y_wid)/y_wid);
     const int hough_y_2=(int)(((-root+laser_y)-y+y_num/2*y_wid)/y_wid);
     //円の方程式に基づいてハフ変換する際のyを計算
     //平方根を取るときに中身が負でないことの確認をしている
-    
+
     bool flag1=hough_y_1>=0&&hough_y_1<y_num&&eq>=0;
     bool flag2=hough_y_2>=0&&hough_y_2<y_num&&eq>=0;
     //ハフ変換で求めたyが範囲内にあるかどうか
@@ -71,13 +70,13 @@ __global__ void make_graph(float *xy_data_d, int *list_d, const int lrf_begin, c
 __global__ void find_cercle(int *list_d, float *cercle_d, int *head_d, const int near_x,const int near_y,const int x_num,const int y_num, const int thr, const float weight){
   const int i = blockIdx.x, j = threadIdx.x;
   //blockIdx.x…何個目のxか threadIdx.x…何個目のyか
-  
+
   const int pos = i*y_num + j;
   //p-qグラフの位置に該当する配列の番号
-  
+
   const int val = list_d[pos];
   //注目する箇所の値
-  
+
   const int x_start  = i - near_x <0 ? 0 : i - near_x;
   const int x_end =  i + near_x >= x_num ? x_num - 1 : i + near_x;
   const int y_start = j - near_y<0 ? 0 : j - near_y;
@@ -103,13 +102,13 @@ __global__ void find_cercle(int *list_d, float *cercle_d, int *head_d, const int
       y_count+=com*z;
     }
   }
-  
+
   bool flag = count==0;
   //極大の時true、それ以外flase
-  
+
   flag = flag&&list_d[pos]>thr;
   //閾値を考慮
-  
+
   if (flag){
     int my_head = head_d[0]++;
     cercle_d[my_head * 2] = x_ave/x_count;
@@ -193,7 +192,7 @@ void mle(float *select_datas,int select_data_num,const float rad,float *x_esti,f
   calc_mle(select_datas,select_data_num,rad,x_esti,y_esti,allow_err,limit_count,&j_ml);
   float len=sqrt((*x_esti)*(*x_esti)+(*y_esti)*(*y_esti));
   float pro_x=(*x_esti)+(*x_esti)/len*rad,pro_y=(*y_esti)+(*y_esti)/len*rad;
-  
+
   float j_ml2=0;
   for(int i=0;i<select_data_num;i++){
     const float x_a=select_datas[2*i],y_a=select_datas[2*i+1];
@@ -247,7 +246,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
   float *xy_data,*xy_data_d;
   xy_data=(float*)malloc(2*lrf_num*sizeof(float));
   cudaMalloc((void**)&xy_data_d,2*lrf_num*sizeof(float));
-  
+
   dim3 block_0((int)floor((lrf_num+warp-1)/warp),1,1);
   dim3 thread_0(warp,1,1);
 
@@ -268,7 +267,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
   cudaMemcpy(list_d, list, x_num*y_num * sizeof(int), cudaMemcpyHostToDevice);
 
   //デバイス用p-qグラフ
-  
+
   dim3 blocks_1(lrf_num, 1, 1);
   dim3 threads_1(x_num,1,1);
   //並列化
@@ -288,7 +287,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
     }
     printf("\n");
     }
-  */  
+  */
 
 
   float *cercle;
@@ -318,13 +317,13 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
 
   cudaMemcpy(cercle, cercle_d, x_num*y_num*2 * sizeof(float), cudaMemcpyDeviceToHost);
   cudaMemcpy(head, head_d, sizeof(int), cudaMemcpyDeviceToHost);
-  
+
   float *find_cercles;
   find_cercles = (float*)malloc(head[0]*2*sizeof(float));
   memcpy(find_cercles, cercle, head[0]*2*sizeof(float));
   //不必要にでかいcercleを使わず必要数だけ保管するfind_cercle配列を作る
 
-  printf("head:%d\n", head[0]);
+  //printf("head:%d\n", head[0]);
   float x_esti,y_esti;
   if(head[0]!=0){
     const float x_b=*p,y_b=*q;
@@ -345,7 +344,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
   //予想のp-qに一番近いものを選んでいる
 
   //for(int i=0;i<head[0];i++)printf("x:%f\ny:%f\n", (float)(find_cercles[2 * i]-x_num/2)* x_wid+x, (float)(find_cercles[2 * i+1]-y_num/2)* y_wid+y);
-  //printf("hough-x:%f\nhough-y:%f\n",x_esti,y_esti); 
+  //printf("hough-x:%f\nhough-y:%f\n",x_esti,y_esti);
   //printf("before_esti_x:%f\nbefore_esti_y:%f\n",*p,*q);
 
   if(head[0]!=0){
@@ -359,7 +358,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
     select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err1,warp);
     //lrfデータを選別
 
-    printf("select:%d\n",select_data_num);
+    //printf("select:%d\n",select_data_num);
     mle(select_datas,select_data_num,rad,&x_esti,&y_esti,allow_err1,limit_count);
     //最尤推定を実行
     select_data_num=0;
@@ -371,12 +370,12 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
 
     select_data_num=0;
     select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err3,warp);
-    printf("select:%d\n",select_data_num);
+    //printf("select:%d\n",select_data_num);
      if(select_data_num>thr2){
       *p=x_esti;
       *q=y_esti;
       *calc_flag=true;
-      printf("p=%f\nq=%f\n",*p,*q);
+      // printf("p=%f\nq=%f\n",*p,*q);
      }
     free(select_datas);
     }
@@ -388,7 +387,7 @@ void detect_cercle_cuda(float *ranges,const int lrf_num,const int lrf_begin,cons
   cudaFree(cercle_d);
   cudaFree(head_d);
   free(find_cercles);
-  
+
   //printf("time:%f[ms]\n", (float)(end - start)/CLOCKS_PER_SEC*1000);
   //printf("\n");
   return;

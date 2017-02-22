@@ -1,0 +1,28 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= ポール検出
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/2/22
+:Revision:  1.0
+
+== Eigen入れ方
+link:http://eigen.tuxfamily.org/index.php?title=Main_Page[EigenHP]よりEigenの最新版を落としてくる.落としたファイルを解凍し,そのファイルがあるディレクトリに移動.解凍したファイルが `eigen-3.3.3`なら下記のようにする.
+[source,UNIX]
+----
+$ mkdir build
+$ cd build
+$ cmake ../eigen-3.3.3
+$ sudo make install
+----
+本来ならこれで行けるはずだが,何故か行けなかったので更に下記のコマンドを実行した.
+[source,UNIX]
+----
+$ cd /usr/include/
+$ sudo mv eigen3/Eigen/ ./
+$ sudo rm -rf eigen3
+----
+これでいけるはず.

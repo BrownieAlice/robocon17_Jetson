@@ -10,9 +10,7 @@ Copyright © 2017 Alice.
 */
 
 #include "ros/ros.h"
-#include "std_msgs/String.h"
 #include "detect_cercle/MBinput.h"
-#include <sstream>
 
 void SubCallback(const detect_cercle::MBinput& msg)
 {

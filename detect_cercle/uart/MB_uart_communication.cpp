@@ -20,22 +20,22 @@ namespace
 {
   bool uart_flag = false;
   // uart接続ができているかどうか.
-  const unsigned int main_loop_hz = 100;
+  constexpr unsigned int main_loop_hz = 100;
   // mainループの周期[Hz].
-  const long connect_loop_hz = 1000;
+  constexpr long connect_loop_hz = 1000;
   // 再接続周期[Hz].
-  const long uart_wait_ns = 5000000;
+  constexpr long uart_wait_ns = 5000000;
   // uartが何も文字を取得しなかった時に待つ秒数[ns].
-  const long timeout_us = 100000;
+  constexpr long timeout_us = 100000;
   // read/writeでタイムアウトとみなす秒数[us].
-  const int timeout_lim = 5;
+  constexpr int timeout_lim = 5;
   // 連続タイムアウトを切断されたとみなす回数.
-  const int zero_lim = 10;
+  constexpr int zero_lim = 10;
   // uartが何も文字を連続で取得しなかった時に切断されたとみなす回数.
-  const char *serial_dev = "/dev/ttyUSB_MB";
+  constexpr char *serial_dev = "/dev/ttyUSB_MB";
   // シリアルポート名.
-
-  const int late_ms = 500;
+  constexpr int late_ms = 500;
+  
 }  // namespace
 
 int main(int argc, char **argv)
