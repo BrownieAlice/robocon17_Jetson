@@ -27,7 +27,7 @@ roslint_cpp()
 
 # SET(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
 # SET(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
-# SET(LIB_TYPE STATIC)
+SET(LIB_TYPE STATIC)
 SET(CMAKE_C_FLAGS "-Wall -O3")
 # SET(CMAKE_CXX_FLAGS "-Wall -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES -Wall -O3")
@@ -49,17 +49,8 @@ include_directories(
 #    CUDA_DETECT
 # )
 
-ADD_EXECUTABLE(MB_uart_communication uart/src/MB_uart_communication.cpp)
-TARGET_LINK_LIBRARIES(MB_uart_communication
-   ${catkin_LIBRARIES}
-)
+add_subdirectory(uart)
 
-ADD_EXECUTABLE(test_pub_data test_pub_data/test_pub_data.cpp)
-TARGET_LINK_LIBRARIES(test_pub_data
-   ${catkin_LIBRARIES}
-)
+add_subdirectory(test_pub_data)
 
-ADD_EXECUTABLE(test_sub_data test_sub_data/test_sub_data.cpp)
-TARGET_LINK_LIBRARIES(test_sub_data
-   ${catkin_LIBRARIES}
-)
+add_subdirectory(test_sub_data)

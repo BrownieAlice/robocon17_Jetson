@@ -1,0 +1,55 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= uartライブラリ
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/2/22
+:Revision:  1.0
+
+== できること
+uartを用いたシリアル通信にてJetsonとMB間を通信する.ラズパイでもできるはず. +
+クラスとかを使って書かずに無名名前空間でゴリ推しているので,シリアル通信する対象は同時に1つしかできない.同時に2つ以上の対象と通信したいのであれば,クラスを作って設計しなおしてほしい.
+
+== 使い方
+=== CMakeLists
+`add_subdirectory` でこのフォルダを指定する.その後, `TARGET_LINK_LIBRARIES` で `UART_LIB` を指定する.CMakeLists上ではこれだけで良い.以下例.
+[source,CMakeLists]
+----
+add_subdirectory(uart/lib)
+ADD_EXECUTABLE(MB_uart_communication
+  uart/src/MB_uart_communication.cpp
+)
+TARGET_LINK_LIBRARIES(MB_uart_communication
+   ${catkin_LIBRARIES}
+   UART_LIB
+)
+----
+
+=== ソースファイル
+`uart.h` をインクルードして使えば良い.使える関数は以下.
+
+* `int open_serial_port(const char *modem_dev)`
+- 指定したポートをuart接続用に開く関数.通信したいなら必ず開いてから通信を開始しないといけない.正常に開けた時は0を,何らかにより開けなかった場合は-1を返す.
+- `*modem_dev` は開きたいポート名を指定する.例えば `"/dev/ttyUSB_MB"`.
+* `void close_serial_port(void)`
+- 今開いているポートを閉じる.何も開いてない状態で呼んでも問題ない.
+* int get_MB_data(const char init, unsigned char *data, const size_t num, const long int once_wait_ns, const long int timeout_us, const int timeout_lim, const int zero_lim)
+- MBからのデータを受け取る.成功したら1,新規文字列なし/タイムアウト/チェックサムエラーは0,失敗/規定回数以上のタイムアウト/規定回数以上新規文字列なしは-1を返す.
+- `init` は通信開始文字.
+- `*data` はMBから受け取ったデータを格納する配列.ここには,MBの通信開始文字やチェックサムは格納しない.
+- `num` は `*data` のサイズであり,MBが送ってくる文字数(ただし通信開始文字とチェックサムは含まない).また `size_t` 型だが, `ssize_t` 型の最大値までしか入れないように注意すること.
+- `once_wait_ns` はMBから受け取れる文字がなかった時にこの時間[ns]だけ待機して再び文字を取得する際の時間.文字を送信するのにも1文字毎に時間がかかるはずなので,このような変数を設定した.
+- `timeout_us` タイムアウトとみなす時間[us].接続が実は切断されていた時などにタイムアウトが生じる.
+- `timeout_lim` タイムアウトがこの回数だけ連続して生じたら,接続が切断されていたとみなし,-1を返すようになる.
+- `zero_lim` MBからこの回数だけなんの文字列も受け取れなかったら,MBの電源が落ちているなどとみなし,-1を返すようになる.
+- それぞれ,エラー時には-1を返すだけであり,シリアルポートを閉じたり,再接続したりはしないことに注意.
+* `put_J_data(const char init, const unsigned char *s, const size_t size, const long int timeout_us, const long int timeout_lim)`
+- JetsonのデータをMBに送信する.成功したら1,タイムアウトしたら0,規定回数以上タイムアウトしたら-1を返す.
+- `init` は通信開始文字.
+- `*s` は送信する文字列(通信開始文字とチェックサムは含まない).
+- `size` は `*s` の文字数(温文字は含まない).
+- `timeout_us` タイムアウトとみなす時間[us].
+- `timeout_lim` タイムアウトの規定値.

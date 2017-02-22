@@ -3,7 +3,7 @@
 Project Name    : MB uart communication
 File Name       : MB_uart_communication
 Encoding        : UTF-8
-Creation Date   : 2017/02/27
+Creation Date   : 2017/02/22
 
 Copyright © 2017 Alice.
 ======================================================================
@@ -12,8 +12,8 @@ Copyright © 2017 Alice.
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
-#include "../lib/uart.cpp"
-#include "../include/MB_uart_communication.h"
+#include "./lib/uart.h"
+#include "./MB_uart_communication_p.h"
 #include <stdint.h>
 
 namespace
@@ -36,15 +36,6 @@ namespace
   // シリアルポート名.
 
   const int late_ms = 500;
-
-  int16_t ucharToint16(unsigned char data1, unsigned char data2)
-  {
-    // 2つのunsigned char型を1つのint16_t型にする.
-    return (int16_t)((uint16_t)data1)|((uint16_t)data2<<8);
-    /*
-    処理系依存
-    */
-  }
 }  // namespace
 
 int main(int argc, char **argv)
@@ -119,9 +110,19 @@ int main(int argc, char **argv)
       loop_rate.sleep();
     }
   }
+  close_serial_port();
 }
 
-int get_uart_input(int8_t *MB_pole, int8_t *color, float *x, float *y, float *theta)
+static int16_t ucharToint16(unsigned char data1, unsigned char data2)
+{
+  // 2つのunsigned char型を1つのint16_t型にする.
+  return (int16_t)((uint16_t)data1)|((uint16_t)data2<<8);
+  /*
+  処理系依存
+  */
+}
+
+static int get_uart_input(int8_t *MB_pole, int8_t *color, float *x, float *y, float *theta)
 {
   //  MBからのデータを受け取る.
   unsigned char data[8];
@@ -145,7 +146,7 @@ int get_uart_input(int8_t *MB_pole, int8_t *color, float *x, float *y, float *th
   }
 }
 
-void publish_MBdata(const int8_t MB_pole, const int8_t color, const float x, const float y, const float theta, const ros::Publisher MBdata_pub)
+static void publish_MBdata(const int8_t MB_pole, const int8_t color, const float x, const float y, const float theta, const ros::Publisher MBdata_pub)
 {
   // MBからのデータを発行する.
   detect_cercle::MBinput MBinfo;
@@ -161,14 +162,14 @@ void publish_MBdata(const int8_t MB_pole, const int8_t color, const float x, con
   ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f", (int)MB_pole, (char)color, x, y, theta);
 }
 
-void subscribe_Jdata(const detect_cercle::Joutput& Jdata)
+static void subscribe_Jdata(const detect_cercle::Joutput& Jdata)
 {
   int success;
   success = uart_output(Jdata.MB_pole, Jdata.x, Jdata.y, Jdata.stamp);
   uart_flag = 1 == success ? true : false;
 }
 
-int uart_output(const int8_t MB_pole, const float x, const float y, const ros::Time stamp)
+static int uart_output(const int8_t MB_pole, const float x, const float y, const ros::Time stamp)
 {
     int16_t send_x = static_cast<int>(x*1000);
     int16_t send_y = static_cast<int>(y*1000);
@@ -202,7 +203,7 @@ int uart_output(const int8_t MB_pole, const float x, const float y, const ros::T
 
     int success;
 
-    success = put_Jdata('X', data, 5, timeout_us, timeout_lim);
+    success = put_J_data('X', data, 5, timeout_us, timeout_lim);
 
     if (1 == success)
     {
