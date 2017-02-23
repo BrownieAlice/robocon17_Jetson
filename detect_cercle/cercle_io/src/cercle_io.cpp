@@ -33,6 +33,8 @@ namespace
   constexpr int lrf_data = 1081;
   // LRFの総データ数
 
+  constexpr int late_ms = 400;
+
   const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.01,allow_err1=0.01,allow_err2=0.005;
   const float x_wid=0.01,y_wid=0.01;
   const int x_num=256,y_num=256;
@@ -145,6 +147,13 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   if(MB_pole < 0 || pole_num <= MB_pole)
   {
     std::cout << "invalid pole_number" << std::endl;
+    return;
+  }
+
+  ros::Duration diff = ros::Time::now()-stamp;
+
+  if (late_ms < diff.sec*1000+diff.nsec/1000000)
+  {
     return;
   }
 
