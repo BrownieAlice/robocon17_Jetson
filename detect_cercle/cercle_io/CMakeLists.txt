@@ -3,6 +3,7 @@ CUDA_ADD_LIBRARY(CUDA_DETECT ${LIB_TYPE} src/detect_cercle_cuda.cu)
 ADD_EXECUTABLE(cercle_io
   src/cercle_io.cpp
   src/pole.cpp
+  src/write_cercle.cpp
 )
 TARGET_LINK_LIBRARIES(cercle_io
    ${catkin_LIBRARIES}

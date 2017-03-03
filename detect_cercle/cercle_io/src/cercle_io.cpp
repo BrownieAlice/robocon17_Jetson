@@ -5,13 +5,18 @@
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
 #include "sensor_msgs/LaserScan.h"
+#include "visualization_msgs/Marker.h"
 #include "../include/cercle_io_p.h"
 #include "../include/pole.h"
 #include "../include/detect_cercle_cuda.h"
+#include "../include/write_cercle.h"
+#define DEIGEN_NO_DEBUG
+#define CERCLE_IO_DEBUG_MODE
 
 namespace
 {
   ros::Publisher Jdata_pub;
+  ros::Publisher marker_pub;
 
   constexpr double LRF_diff_x = 0.2, LRF_diff_y = 0;
   // LRF座標系での話
@@ -74,6 +79,7 @@ int main(int argc, char **argv)
   ros::Subscriber sub = n.subscribe("MBdata", 1, Sub_Callback);
   ros::Subscriber laser = n.subscribe("scan",1,Laser_Callback);
   Jdata_pub = n.advertise<detect_cercle::Joutput>("Jdata", 1);
+  marker_pub = n.advertise<visualization_msgs::Marker>("write_cercle", 1);
   ros::Rate loop_rate(10);
 
   while (ros::ok())
@@ -144,18 +150,26 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
     return;
   }
 
+  write_position = false;
+
   if(MB_pole < 0 || pole_num <= MB_pole)
   {
     std::cout << "invalid pole_number" << std::endl;
     return;
   }
 
+  #ifndef CERCLE_IO_DEBUG_MODE
+
   ros::Duration diff = ros::Time::now()-stamp;
 
   if (late_ms < diff.sec*1000+diff.nsec/1000000)
   {
+    // 位置情報がlatemsよりも古い情報なら処理しない.
+
     return;
   }
+
+  #endif
 
   Eigen::Matrix4d AbsToLRF;
   calc_matrix(AbsToLRF);
@@ -188,6 +202,8 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   if(true==calc_flag)
   {
+    write_cercle(p, q, rad, marker_pub);
+
     //printf("p:%f,q:%f\n", p, q);
     Eigen::Vector4d pole_rel_modify;
     pole_rel_modify << p, q, 0, 1;
