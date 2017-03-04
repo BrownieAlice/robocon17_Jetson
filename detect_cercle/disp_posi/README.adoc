@@ -1,0 +1,61 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= 自己位置表示
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/3/4
+:Revision:  1.0
+
+== OpenGL入れ方
+link:http://qiita.com/yubais/items/c976c2ecdf5fa71bd473[Qiita]参考.以下のようにすれば完了.
+[source,UNIX]
+----
+$ sudo apt-get install freeglut3 freeglut3-dev
+----
+
+ROSとか入れてるとすでにインストール済みだったりすることも….
+
+== CMakeLists
+CMakeListsは下記のように書き加えれば良い
+
+[source,CMakeLists]
+----
+find_package(GLUT)
+find_package(OpenGL)
+
+TARGET_LINK_LIBRARIES(hogehoge
+   ${GLUT_LIBRARY}
+   ${OPENGL_LIBRARY}
+)
+----
+
+== glpng入れ方
+OpenGLは標準ではPNG画像やその他画像を取り扱うことはできない.そのためここではPNG画像を取り扱うためのライブラリを入れる. +
+参考サイトはlink:http://arisawa-nanase.hatenablog.jp/entry/20130623[OpenGLでpng表示]とlink:http://nobuyo.github.io/article/build-glpng-env/[glpngを使えるようになるまで]. +
+
+まずライブラリをダウンロードする.link:http://openports.se/graphics/glpng[サイト].解凍し `src` ディレクトリに移動. `Makefile.LINUX` を `Makefile` にリネームする. +
+ただ,このまま `make` すると実行時にエラーが出るので, `src/glpng.c` の500行目近辺で定義されている関数 `glColorTableEXT` を `glColorTable` に書き換える. +
+そうした後, `make` する. +
+その後, `include/GL` で下記1行目を, `lib` で下記2行目を実行.
+[source,UNIX]
+----
+$ sudo cp glpng.h /usr/include/GL/
+$ sudo cp libglpng.a /usr/lib/
+----
+
+これで使えるようになるはず.
+
+== CMakeLists
+CMakeListsは下記のように書き加えれば良い
+
+[source,CMakeLists]
+----
+target_link_libraries(hogehoge
+   glpng
+)
+----
+
+なお,算術ライブラリはglpngの後にリンクさせること.
