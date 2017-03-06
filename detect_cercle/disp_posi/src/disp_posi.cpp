@@ -12,6 +12,8 @@ Copyright © 2017 Alice.
 #include <GL/freeglut.h>
 #include <GL/glpng.h>
 #include <math.h>
+#include <stdlib.h>
+#include <string>
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
 #include "../include/disp_posi_p.h"
@@ -34,6 +36,8 @@ namespace
   constexpr float disp_tri_len = field_tri_len / redu_ratio;
   constexpr int main_loop_hz = 60;
   constexpr int texture_num = 2;
+
+  const std::string rel_img_address = "/catkin_ws/fig/field.png";
 
   pngInfo info;
   GLuint texture[texture_num];
@@ -59,11 +63,23 @@ int main(int argc, char **argv)
   glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DOUBLE);
   glClearColor(1.0, 1.0, 1.0, 1.0);
 
-  glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   glGenTextures(texture_num, texture);
-  texture[0] = pngBind ("field.png", PNG_NOMIPMAP, PNG_ALPHA, &info, GL_CLAMP, GL_NEAREST, GL_NEAREST);
+
+  std::string real_img_address;
+  const char *home_address =  getenv("HOME");
+  if (NULL != home_address)
+  {
+    real_img_address = home_address;
+    real_img_address += rel_img_address;
+    texture[0] = pngBind (real_img_address.c_str(), PNG_NOMIPMAP, PNG_ALPHA, &info, GL_CLAMP, GL_NEAREST, GL_NEAREST);
+  }
+  else
+  {
+    std::cout << "fail to get home address." << std::endl;
+    std::cout << "can't open background image." << std::endl;
+  }
 
   /* 画面を再描写するときに実行される関数を指定
        (初期化、ウィンドウサイズ変更時など) */
@@ -110,6 +126,9 @@ static void display(void) {
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_ALPHA_TEST);
+    glEnable(GL_BLEND);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     write_bg(texture[0]);
 
@@ -124,9 +143,16 @@ static void display(void) {
     }
 
     if(true == now_data){
+      glEnable(GL_POLYGON_SMOOTH);
+
+      glHint(GL_POLYGON_SMOOTH_HINT,GL_NICEST);
+
       write_triangle(field_width, field_height, robot_x * 1000, robot_y * 1000, robot_theta, disp_tri_len, tri_alpha, texture[1]);
+
+      glDisable(GL_POLYGON_SMOOTH);
     }
 
+    glDisable(GL_BLEND);
     glDisable(GL_ALPHA_TEST);
     glDisable(GL_TEXTURE_2D);
     glutSwapBuffers();

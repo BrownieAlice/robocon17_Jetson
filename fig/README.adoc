@@ -1,0 +1,13 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= field.png
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/3/6
+:Revision:  1.0
+
+== 画像の配置
+disp_posiで背景のフィールド画像を表示する際に `~/catkin_ws/fig/field.png` がきちんと配置されるように `fig` フォルダを移動する.
