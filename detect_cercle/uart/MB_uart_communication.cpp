@@ -32,10 +32,10 @@ namespace
   // 連続タイムアウトを切断されたとみなす回数.
   constexpr int zero_lim = 10;
   // uartが何も文字を連続で取得しなかった時に切断されたとみなす回数.
-  constexpr char *serial_dev = "/dev/ttyUSB_MB";
+  constexpr char serial_dev[] = "/dev/ttyUSB_MB";
   // シリアルポート名.
   constexpr int late_ms = 500;
-  
+
 }  // namespace
 
 int main(int argc, char **argv)

@@ -1,5 +1,10 @@
 #ifndef MB_UART
 #define MB_UART
+
+#include "ros/ros.h"
+#include "detect_cercle/Joutput.h"
+#include <stdint.h>
+
 static int16_t ucharToint16(unsigned char data1, unsigned char data2);
 static int get_uart_input(int8_t *MB_pole,int8_t *color,float *x,float *y,float *theta);
 static void publish_MBdata(const int8_t MB_pole,const int8_t color,const float x,const float y,const float theta,const ros::Publisher MBdata_pub);

@@ -1,6 +1,9 @@
 #ifndef CONNECT_BY_UART_P
 #define CONNECT_BY_UART_P
 
+#include <stddef.h>
+#include <termios.h>
+
 static void init_newtio(void);
 static int compare_termious(const struct termios *settio_p, const struct termios *nowtio_p);
 static int get_and_wait_char(unsigned char *s, const struct timespec wait, const long int timeout_us, const int timeout_lim);

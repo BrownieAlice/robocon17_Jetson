@@ -1,6 +1,10 @@
 #ifndef CERCLE_IO_DETECT_CERCLE
 #define CERCLE_IO_DETECT_CERCLE
 
+#include <Eigen/Dense>
+#include "detect_cercle/MBinput.h"
+#include "sensor_msgs/LaserScan.h"
+
 static Eigen::Matrix4d RotMatrix(double theta);
 static Eigen::Matrix4d TransMatrix(double x, double y);
 static void calc_matrix(Eigen::Matrix4d &AbsToLRF);

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 
 project(detect_cercle)
 
-#find_package(CUDA REQUIRED)
+find_package(CUDA REQUIRED)
 find_package(GLUT)
 find_package(OpenGL)
 find_package(catkin REQUIRED COMPONENTS
@@ -32,8 +32,7 @@ set(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
 set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
 set(LIB_TYPE STATIC)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-set(CMAKE_C_FLAGS "-Wall -O3 -lglut -lGLU -lGL -lm")
-# SET(CMAKE_CXX_FLAGS "-Wall -O3")
+set(CMAKE_C_FLAGS "-Wall -O3")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES -Wall -O3 -std=c++11")
 
 catkin_package(
@@ -49,6 +48,6 @@ add_subdirectory(test_pub_data)
 
 add_subdirectory(test_sub_data)
 
-#add_subdirectory(cercle_io)
+add_subdirectory(cercle_io)
 
 add_subdirectory(disp_posi)
