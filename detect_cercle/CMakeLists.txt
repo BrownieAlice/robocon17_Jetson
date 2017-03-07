@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 
 project(detect_cercle)
 
-find_package(CUDA REQUIRED)
+#find_package(CUDA REQUIRED)
 find_package(GLUT)
 find_package(OpenGL)
 find_package(catkin REQUIRED COMPONENTS
@@ -49,6 +49,6 @@ add_subdirectory(test_pub_data)
 
 add_subdirectory(test_sub_data)
 
-add_subdirectory(cercle_io)
+#add_subdirectory(cercle_io)
 
 add_subdirectory(disp_posi)
