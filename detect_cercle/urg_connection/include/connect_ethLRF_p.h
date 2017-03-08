@@ -1,5 +1,5 @@
-#ifndef connect_usbLRF_p
-#define connect_usbLRF_p
+#ifndef connect_ethLRF_p
+#define connect_ethLRF_p
 
 #include <vector>
 #include "../lib/urg_utils.h"

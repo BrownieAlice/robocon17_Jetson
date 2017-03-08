@@ -1,7 +1,7 @@
 /*
 ======================================================================
-Project Name    : connect usbLRF
-File Name       : connect_usbLRF
+Project Name    : connect ethLRF
+File Name       : connect_ethLRF
 Encoding        : UTF-8
 Creation Date   : 2017/03/08
 
@@ -17,7 +17,7 @@ Copyright © 2017 Alice.
 #include "../lib/urg_sensor.h"
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
-#include "../include/connect_usbLRF_p.h"
+#include "../include/connect_ethLRF_p.h"
 #include "../include/connect_LRF_lib.h"
 
 namespace
@@ -26,11 +26,11 @@ namespace
   {
     // パラメータ
 
-    constexpr urg_connection_type_t connection_type = URG_SERIAL;
+    constexpr urg_connection_type_t connection_type = URG_ETHERNET;
     // 接続方式.
-    constexpr char connect_device[] = "/dev/ttyACM_TOPURG1";
+    constexpr char connect_address[] = "192.168.0.10";
     // デバイス名.
-    constexpr long int connect_baudrate = 115200;
+    constexpr long int connect_port = 10940;
     // ボーレート.
     constexpr int LRF_recconect_hz = 10;
     // LRFと接続できなかった時再接続する周期[Hz].
@@ -47,9 +47,9 @@ namespace
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "connect_usbLRF");
+  ros::init(argc, argv, "connect_ethLRF");
   ros::NodeHandle n;
-  ros::Publisher lrf_data = n.advertise<sensor_msgs::LaserScan>("scan_usbLRF", 2);
+  ros::Publisher lrf_data = n.advertise<sensor_msgs::LaserScan>("scan_ethLRF", 2);
   sensor_msgs::LaserScan msg;
   // ROS設定
 
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
   unsigned short *intensity_data = nullptr;
   // LRFの強度データを格納.
 
-  loop_to_connect_LRF(&urg, param::connection_type, param::connect_device, param::connect_baudrate, param::LRF_recconect_hz, param::timeout_ms);
+  loop_to_connect_LRF(&urg, param::connection_type, param::connect_address, param::connect_port, param::LRF_recconect_hz, param::timeout_ms);
   // LRFに接続.
 
   loop_to_ensure_memory(&urg, &length_data, param::memory_reensure_hz);
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
       ROS_INFO("close LRF connection.");
       //LRFと切断.
 
-      loop_to_connect_LRF(&urg, param::connection_type, param::connect_device, param::connect_baudrate, param::LRF_recconect_hz, param::timeout_ms);
+      loop_to_connect_LRF(&urg, param::connection_type, param::connect_address, param::connect_port, param::LRF_recconect_hz, param::timeout_ms);
     }
     else if (length_data_size == 0)
     {
