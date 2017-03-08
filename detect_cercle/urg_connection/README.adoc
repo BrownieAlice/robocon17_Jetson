@@ -1,0 +1,37 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= LRFとの通信
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/3/7
+:Revision:  1.0
+
+== URGライブラリ入れ方
+link:https://sourceforge.net/p/urgnetwork/wiki/top_jp/[wiki]参考.link:https://sourceforge.net/projects/urgnetwork/files/urg_library/[ライブラリ]をまずダウンロードする.そして下記コマンドを実行.
+[source,UNIX]
+----
+$ unzip urg_library_ja-1.2.0.zip
+$ cd urg_library_ja-1.2.0/
+$ emacs Makefile
+----
+1行目の `PREFIX = /usr/local` を `PREFIX = /usr` に変更.
+
+----
+$ make
+$ sudo make install
+----
+
+これで終了.
+
+== CMakeLists
+CMakeListsは下記のように書き加えれば良い
+
+[source,CMakeLists]
+----
+target_link_libraries(hogehoge
+   urg_c
+)
+----

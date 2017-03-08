@@ -51,3 +51,5 @@ add_subdirectory(test_sub_data)
 add_subdirectory(cercle_io)
 
 add_subdirectory(disp_posi)
+
+add_subdirectory(urg_connection)
