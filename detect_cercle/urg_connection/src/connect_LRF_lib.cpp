@@ -18,7 +18,7 @@ Copyright © 2017 Alice.
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
 #include "../include/connect_xxxLRF.h"
-#include "../include/connect_LRF_lib.h"
+#include "../include/connect_LRF_lib_p.h"
 
 
 int main(int argc, char **argv)
@@ -118,8 +118,7 @@ int main(int argc, char **argv)
   return 0;
 }
 
-
-void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_type, const char *connect_address_device,const long int connect_port_baudrate, const int LRF_recconect_hz, const int timeout_ms)
+static void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_type, const char *connect_address_device,const long int connect_port_baudrate, const int LRF_recconect_hz, const int timeout_ms)
 {
   // LRFと接続,通信開始.
 
@@ -183,7 +182,7 @@ void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_type, c
   }
 }
 
-void convert_ros_data(const int size,const long int *length_data,const unsigned short *intensity_data, std::vector<float> *ros_ranges, std::vector<float> *ros_intensities)
+static void convert_ros_data(const int size,const long int *length_data,const unsigned short *intensity_data, std::vector<float> *ros_ranges, std::vector<float> *ros_intensities)
 {
   // LRFのデータをLaserScan型のデータに変更.
 
@@ -206,7 +205,7 @@ void convert_ros_data(const int size,const long int *length_data,const unsigned 
 
 }
 
-void set_msg_data(sensor_msgs::LaserScan *msg_p,const int size, const urg_t &urg, const int real_data_size, const char frame_name[])
+static void set_msg_data(sensor_msgs::LaserScan *msg_p,const int size, const urg_t &urg, const int real_data_size, const char frame_name[])
 {
   msg_p->header.stamp = ros::Time::now();
   msg_p->header.frame_id = frame_name;
@@ -222,4 +221,33 @@ void set_msg_data(sensor_msgs::LaserScan *msg_p,const int size, const urg_t &urg
   msg_p->angle_min = static_cast<float>(urg_index2rad(&urg, 0));
   msg_p->angle_max = static_cast<float>(urg_index2rad(&urg, real_data_size - 1));
   msg_p->angle_increment = (msg_p->angle_max - msg_p->angle_min) / (real_data_size - 1);
+}
+
+template <typename T>
+static void loop_to_ensure_memory(const int size, T **data, const int memory_reensure_hz)
+{
+  // LRFのデータ格納用のメモリを確保
+
+  ros::Rate loop_rate(memory_reensure_hz);
+  // ループ周期設定.
+
+  do
+  {
+    *data = (T *)std::malloc(sizeof(T) * size);
+
+    if(nullptr == *data)
+    {
+      // メモリ確保できず
+      ROS_INFO("error:%s",std::strerror(errno));
+      ROS_INFO("fail to ensure memory.");
+    }
+    else
+    {
+      // 確保成功
+      break;
+    }
+
+    loop_rate.sleep();
+  }
+  while(ros::ok());
 }

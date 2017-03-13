@@ -4,7 +4,7 @@
 #include <GL/freeglut.h>
 #include "detect_cercle/MBinput.h"
 
-static void init_glut(char ** argv);
+static void init_glut(int *glut_argc_p, char ** argv, const int disp_width, const int disp_height, const char rel_img_address[], GLuint texture[], const int texture_num, pngInfo *png_info_p);
 static void SubCallback(const detect_cercle::MBinput& msg);
 static void display(void);
 static void write_bg(GLuint texture);

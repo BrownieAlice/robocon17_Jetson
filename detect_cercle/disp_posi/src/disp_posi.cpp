@@ -23,52 +23,57 @@ Copyright © 2017 Alice.
 
 namespace
 {
-  int glut_argc = 1;
-  // glutに渡す引数の個数.
+  namespace param
+  {
+    int glut_argc = 1;
+    // glutに渡す引数の個数.
 
-  bool now_data = false;
-  // データを受け取ったか否か.
-  char field_color;
-  // フィールドの色.
-  float robot_x, robot_y, robot_theta;
-  // MBから渡されたロボットの自己位置,姿勢角.
+    constexpr float alpha_coe = 0.025;
+    // alpha_countを透明度に変換するときの比例定数.
+    constexpr float alpha_min = 0.3;
+    // 透明度の最低値.
+    constexpr int alpha_count_margin_max = 10;
+    // 何回MBから情報を受け取らなかったか,この回数だけ受け取れなかったら透明度を下げ始める.
 
-  constexpr float alpha_coe = 0.025;
-  // alpha_countを透明度に変換するときの比例定数.
-  constexpr float alpha_min = 0.3;
-  // 透明度の最低値.
-  int alpha_count = (int)((1 - alpha_min) / alpha_coe);
-  // 透明度をMBからデータが来なかった秒数によって決める.そのカウント用変数.
-  int alpha_count_margin = 0;
-  // メインループが60Hz程度だがMBからは10msごとにしか情報が来ない.そのため数回情報が来なかったとしても無視する.そのための変数.
-  constexpr int alpha_count_margin_max = 10;
-  // 何回MBから情報を受け取らなかったか,この回数だけ受け取れなかったら透明度を下げ始める.
+    constexpr int field_width = 15050, field_height = 14150;
+    // フィールドそのものの横/縦の大きさ[mm].
+    constexpr float field_tri_len = 1;
+    // フィールド図で示す自機の三角形の1辺の大きさ[m].
+    constexpr int redu_ratio = 20;
+    // フィールドの大きさをウィンドウのピクセルに変換する際の縮小比.
+    constexpr int disp_width = (int)ceil((double)field_width / redu_ratio), disp_height = (int)ceil((double)field_height / redu_ratio);
+    // ウィンドウの横/縦のピクセル数.
+    constexpr float disp_tri_len = field_tri_len / redu_ratio;
+    // ウィンドウの自機の三角形のピクセル数.
 
-  constexpr int field_width = 15050, field_height = 14150;
-  // フィールドそのものの横/縦の大きさ[mm].
-  constexpr float field_tri_len = 1;
-  // フィールド図で示す自機の三角形の1辺の大きさ[m].
-  constexpr int redu_ratio = 20;
-  // フィールドの大きさをウィンドウのピクセルに変換する際の縮小比.
-  constexpr int disp_width = (int)ceil((double)field_width / redu_ratio), disp_height = (int)ceil((double)field_height / redu_ratio);
-  // ウィンドウの横/縦のピクセル数.
-  constexpr float disp_tri_len = field_tri_len / redu_ratio;
-  // ウィンドウの自機の三角形のピクセル数.
+    constexpr int field_string_x = 10000, field_string_y = 10000;
 
-  constexpr int field_string_x = 10000, field_string_y = 10000;
+    constexpr int main_loop_hz = 60;
+    // メイン関数を実行する周波数.実質的には描画のフレームレート.
+    constexpr int texture_num = 2;
+    // テクスチャの数.
 
-  constexpr int main_loop_hz = 60;
-  // メイン関数を実行する周波数.実質的には描画のフレームレート.
-  constexpr int texture_num = 2;
-  // テクスチャの数.
+    constexpr char rel_img_address[] = "/catkin_ws/fig/field.png";
+    // ホームディレクトリから見たフィールド図の位置.
+  }
 
-  constexpr char rel_img_address[] = "/catkin_ws/fig/field.png";
-  // ホームディレクトリから見たフィールド図の位置.
+  namespace var
+  {
+    bool now_data = false;
+    // データを受け取ったか否か.
+    char field_color;
+    // フィールドの色.
+    float robot_x, robot_y, robot_theta;
+    // MBから渡されたロボットの自己位置,姿勢角.
 
-  pngInfo png_info;
-  // pngデータの情報.
-  GLuint texture[texture_num];
-  // テクスチャを格納する配列.
+    int alpha_count = (int)((1 - param::alpha_min) / param::alpha_coe);
+    // 透明度をMBからデータが来なかった秒数によって決める.そのカウント用変数.
+    int alpha_count_margin = 0;
+    // メインループが60Hz程度だがMBからは10msごとにしか情報が来ない.そのため数回情報が来なかったとしても無視する.そのための変数.
+
+    GLuint texture[param::texture_num];
+    // テクスチャを格納する配列.
+  }
 }
 
 int main(int argc, char **argv)
@@ -76,27 +81,30 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "disp_posi");
   ros::NodeHandle n;
   ros::Subscriber sub = n.subscribe("MBdata", 1, SubCallback);
-  ros::Rate loop_rate(main_loop_hz);
+  ros::Rate loop_rate(param::main_loop_hz);
   // ROS設定
 
-  init_glut(argv);
+  pngInfo png_info;
+  // pngデータの情報.
+
+  init_glut(&param::glut_argc, argv, param::disp_width, param::disp_height, param::rel_img_address, var::texture, param::texture_num, &png_info);
   // glut設定
 
   while (ros::ok())
   {
-    if (1 - alpha_count * alpha_coe > alpha_min){
+    if (1 - var::alpha_count * param::alpha_coe > param::alpha_min){
       // alpha_countがある程度小さい時(無限にカウントし続けるとオーバーフローするのでその対策)
-      if(alpha_count_margin_max <= alpha_count_margin)
+      if(param::alpha_count_margin_max <= var::alpha_count_margin)
       {
         // 規定回数以上連続でMBの情報を受け取れなかった時(数回MBの情報が受け取れなくてもこのループの周波数が高いだけの可能性もあるので).
-        alpha_count++;
+        var::alpha_count++;
         glutPostRedisplay();
         // 再描画の必要性を主張.
       }
       else
       {
         // 規定回数未満だけ連続でMBの情報を受け取れなかった時.
-        alpha_count_margin++;
+        var::alpha_count_margin++;
       }
     }
     ros::spinOnce();
@@ -109,9 +117,9 @@ int main(int argc, char **argv)
   return 0;
 }
 
-static void init_glut(char ** argv)
+static void init_glut(int *glut_argc_p, char ** argv, const int disp_width, const int disp_height, const char rel_img_address[], GLuint texture[], const int texture_num, pngInfo *png_info_p)
 {
-  glutInit(&glut_argc, argv);
+  glutInit(glut_argc_p, argv);
   // glut初期化
 
   glutInitWindowPosition(100, 100);
@@ -133,15 +141,20 @@ static void init_glut(char ** argv)
   glGenTextures(texture_num, texture);
   // テクスチャオブジェクトの生成.
 
+  texture[0] = 0;
+  texture[1] = 0;
+  // テクスチャオブジェクトの初期化.
+
   std::string real_img_address;
   // pngファイルのパスを格納する
   const char *home_address =  getenv("HOME");
   // HOMEアドレスのパスを格納する.
+
   if (NULL != home_address)
   {
     real_img_address = home_address;
     real_img_address += rel_img_address;
-    texture[0] = pngBind (real_img_address.c_str(), PNG_NOMIPMAP, PNG_ALPHA, &png_info, GL_CLAMP, GL_LINEAR, GL_LINEAR);
+    texture[0] = pngBind (real_img_address.c_str(), PNG_NOMIPMAP, PNG_ALPHA, png_info_p, GL_CLAMP, GL_LINEAR, GL_LINEAR);
     // png画像の取得.
 
     if (texture[0] == 0)
@@ -157,7 +170,6 @@ static void init_glut(char ** argv)
     std::cout << "can't open background image." << std::endl;
   }
 
-  texture[1] = 0;
 
   glutDisplayFunc(display);
   // ディスプレイコールバック関数を設定.
@@ -169,25 +181,30 @@ static void SubCallback(const detect_cercle::MBinput& msg)
 {
   // MBからのデータのコールバック関数.
 
-  field_color = msg.color;
-  robot_x = msg.x;
-  robot_y = msg.y;
-  robot_theta = msg.theta;
-  // MBからの情報.
-
-  now_data = true;
-  // データが書き込まれたことを示す.
-
-  alpha_count -= 2;
-  if (alpha_count < 0)
-  {
-    alpha_count = 0;
-  }
-  // 透明度を下げる方向に変更.ただ透明度はなめらかに変えるためにいきなり0にはしない.アンダーフローしないように監視.
-
-  alpha_count_margin = 0;
+  var::alpha_count_margin = 0;
   // 連続でMBからの情報が受け取れないという状況はなくなった.
 
+  if (true == var::now_data && var::field_color == msg.color && var::robot_x == msg.x && var::robot_y == msg.y && var::robot_theta == msg.theta && 0 == var::alpha_count )
+  {
+    // 変更する必要がないときは何もしない.とくに再描画させない.
+    return;
+  }
+
+  var::field_color = msg.color;
+  var::robot_x = msg.x;
+  var::robot_y = msg.y;
+  var::robot_theta = msg.theta;
+  // MBからの情報.
+
+  var::now_data = true;
+  // データが書き込まれたことを示す.
+
+  var::alpha_count--;
+  if (var::alpha_count < 0)
+  {
+    var::alpha_count = 0;
+  }
+  // 透明度を下げる方向に変更.ただ透明度はなめらかに変えるためにいきなり0にはしない.アンダーフローしないように監視.
   glutPostRedisplay();
   // 再描画の必要性を主張.
 }
@@ -199,30 +216,30 @@ static void display(void) {
     // 色をクリア.指定した色で初期化する.
 
     glLoadIdentity();
-    // 東映の変換行列を単位行列に初期化.
+    // 投影の変換行列を単位行列に初期化.
 
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_ALPHA_TEST);
     glEnable(GL_BLEND);
     // テクスチャ/アルファチャンネル/混合処理を有効化.
 
-    write_bg(texture[0]);
+    write_bg(var::texture[0]);
     // 背景の描画
 
-    float tri_alpha = 1 - alpha_count * alpha_coe;
+    float tri_alpha = 1 - var::alpha_count * param::alpha_coe;
     // 三角形(自機の位置表示)の透明度
 
     if (tri_alpha > 1)
     {
       tri_alpha = 1;
     }
-    else if (tri_alpha < alpha_min)
+    else if (tri_alpha < param::alpha_min)
     {
-      tri_alpha = alpha_min;
+      tri_alpha = param::alpha_min;
     }
     // 透明度が1より大きくなったり,指定された最小値より小さくなったりしないようにしてる.
 
-    if(true == now_data){
+    if(true == var::now_data){
       // 自己位置情報を受け取ったことがあるとき.
 
       glEnable(GL_POLYGON_SMOOTH);
@@ -231,13 +248,13 @@ static void display(void) {
       glHint(GL_POLYGON_SMOOTH_HINT,GL_NICEST);
       // 画質優先.
 
-      write_triangle(field_width, field_height, robot_x * 1000, robot_y * 1000, robot_theta, disp_tri_len, tri_alpha, texture[1]);
+      write_triangle(param::field_width, param::field_height, var::robot_x * 1000, var::robot_y * 1000, var::robot_theta, param::disp_tri_len, tri_alpha, var::texture[1]);
       // 三角形の描画
 
       glDisable(GL_POLYGON_SMOOTH);
       // ポリゴンのアンチエイリアス無効化.
 
-      write_position(field_width, field_height, field_string_x, field_string_y, disp_width, disp_height, robot_x, robot_y, robot_theta);
+      write_position(param::field_width, param::field_height, param::field_string_x, param::field_string_y, param::disp_width, param::disp_height, var::robot_x, var::robot_y, var::robot_theta);
       // 位置情報の書き込み.
     }
 
@@ -320,7 +337,7 @@ static void resize(int width, int height)
 {
   // リサイズコールバック関数.
 
-  glutReshapeWindow(disp_width, disp_height);
+  glutReshapeWindow(param::disp_width, param::disp_height);
   // 一定値に保つ.
 }
 
