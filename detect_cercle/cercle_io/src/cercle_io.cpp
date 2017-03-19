@@ -15,30 +15,45 @@
 
 namespace
 {
-  ros::Publisher Jdata_pub;
-  ros::Publisher marker_pub;
-
-  constexpr double LRF_diff_x = 0.2, LRF_diff_y = 0;
-  // LRF座標系での話
-
-  constexpr int pole_num = 7;
-  // ポールの個数
-  Pole pole[pole_num] =
+  namespace param
   {
-    Pole( 3.5,  7.075, 0),
-    Pole( 5.5,  7.075, 1),
-    Pole( 7.5,  7.075, 2),
-    Pole( 9.5,  7.075, 3),
-    Pole(11.5,  7.075, 4),
-    Pole( 7.5,  4.075, 5),
-    Pole( 7.5, 10.075, 6)
-  };
-  // ポールの配列
+    constexpr double LRF_diff_x = 0.2, LRF_diff_y = 0;
+    // LRF座標系での話
+
+    constexpr int pole_num = 7;
+    // ポールの個数
+
+    const ros::Duration MBdata_late(400e-3);
+    // 許容する遅れ時間.
+
+    const Pole pole[pole_num] =
+    {
+      Pole( 3.5,  7.075, 0),
+      Pole( 5.5,  7.075, 1),
+      Pole( 7.5,  7.075, 2),
+      Pole( 9.5,  7.075, 3),
+      Pole(11.5,  7.075, 4),
+      Pole( 7.5,  4.075, 5),
+      Pole( 7.5, 10.075, 6)
+    };
+    // ポールの配列
+  }
+
+  namespace var
+  {
+    ros::Publisher Jdata_pub;
+    ros::Publisher marker_pub;
+    detect_cercle::Joutput msg;
+
+    bool write_position=false;
+    int MB_pole;
+    char color;
+    float x,y,theta;
+    ros::Time stamp;
+  }
 
   constexpr int lrf_data = 1081;
   // LRFの総データ数
-
-  constexpr int late_ms = 400;
 
   const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.01,allow_err1=0.01,allow_err2=0.005;
   const float x_wid=0.01,y_wid=0.01;
@@ -47,7 +62,7 @@ namespace
   const int near_x=6,near_y=6,thr=1,thr2=3;
   const float weight=5;
   const int warp=32,limit_count=50;
-  float p=0,q=0;
+  float pole_rel_x=0,pole_rel_y=0;
   bool calc_flag=false;
   /*
    rad…ポールの半径
@@ -64,12 +79,6 @@ namespace
    weight…重み付き平均を求める際の範囲
   */
 
-  bool write_position=false;
-  int MB_pole;
-  char color;
-  float x,y,theta;
-  ros::Time stamp;
-
 }  // namespace
 
 int main(int argc, char **argv)
@@ -78,8 +87,8 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Subscriber sub = n.subscribe("MBdata", 1, Sub_Callback);
   ros::Subscriber laser = n.subscribe("scan",1,Laser_Callback);
-  Jdata_pub = n.advertise<detect_cercle::Joutput>("Jdata", 1);
-  marker_pub = n.advertise<visualization_msgs::Marker>("write_cercle", 1);
+  var::Jdata_pub = n.advertise<detect_cercle::Joutput>("Jdata", 1);
+  var::marker_pub = n.advertise<visualization_msgs::Marker>("write_cercle", 1);
   ros::Rate loop_rate(10);
 
   while (ros::ok())
@@ -117,42 +126,42 @@ static Eigen::Matrix4d TransMatrix(double x, double y)
   return mat;
 }
 
-static void calc_matrix(Eigen::Matrix4d &AbsToLRF)
+static void calc_matrix(Eigen::Matrix4d *AbsToLRF, const float x, const float y, const float theta, const float LRF_diff_x, const float LRF_diff_y)
 {
   // 絶対座標系からLRF座標系への同時変換行列の計算
-  AbsToLRF =  Eigen::MatrixXd::Identity(4,4);
-  AbsToLRF = AbsToLRF * TransMatrix((double)x,(double)y) * RotMatrix((double)theta);
+  *AbsToLRF =  Eigen::MatrixXd::Identity(4,4);
+  *AbsToLRF = (*AbsToLRF) * TransMatrix((double)x, (double)y) * RotMatrix((double)theta);
   // 機体の今いる自己位置へ移動.
-  AbsToLRF = AbsToLRF * RotMatrix(M_PI/2);
+  *AbsToLRF = (*AbsToLRF) * RotMatrix(M_PI/2);
   // LRFの座標系のとり方に変換.
-  AbsToLRF = AbsToLRF * TransMatrix(LRF_diff_x,LRF_diff_y);
+  *AbsToLRF = (*AbsToLRF) * TransMatrix(LRF_diff_x,LRF_diff_y);
   // 機体中心からLRF中心に移動.
 }
 
 static void Sub_Callback(const detect_cercle::MBinput& msg)
 {
   // uartにより発行されたトピックの購読
-  write_position = true;
-  MB_pole = (int)msg.MB_pole;
-  color = (char)msg.color;
-  x = msg.x;
-  y = msg.y;
-  stamp = msg.stamp;
+  var::write_position = true;
+  var::MB_pole = (int)msg.MB_pole;
+  var::color = (char)msg.color;
+  var::x = msg.x;
+  var::y = msg.y;
+  var::stamp = msg.stamp;
   // ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)msg.MB_pole,(char)msg.color,msg.x,msg.y,msg.theta);
 }
 
 void Laser_Callback(const sensor_msgs::LaserScan& msg)
 {
   // LRFデータの購読
-  if (false == write_position)
+  if (false == var::write_position)
   {
     // なにも書き込まれていない時.
     return;
   }
 
-  write_position = false;
+  var::write_position = false;
 
-  if(MB_pole < 0 || pole_num <= MB_pole)
+  if(var::MB_pole < 0 || param::pole_num <= var::MB_pole)
   {
     std::cout << "invalid pole_number" << std::endl;
     return;
@@ -160,22 +169,21 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   #ifndef CERCLE_IO_DEBUG_MODE
 
-  ros::Duration diff = ros::Time::now()-stamp;
+  const ros::Duration diff = ros::Time::now() - var::stamp;
 
-  if (late_ms < diff.sec*1000+diff.nsec/1000000)
+  if (param::MBdata_late < diff)
   {
     // 位置情報がlatemsよりも古い情報なら処理しない.
-
     return;
   }
 
   #endif
 
   Eigen::Matrix4d AbsToLRF;
-  calc_matrix(AbsToLRF);
+  calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y);
   // 絶対座標系からLRF座標系への同時変換行列
 
-  const Eigen::Vector4d pole_abs = pole[MB_pole].getVector();
+  const Eigen::Vector4d pole_abs = param::pole[var::MB_pole].getVector();
   // ポールの絶対位置
 
   const Eigen::Vector4d pole_rel = AbsToLRF.inverse() * pole_abs;
@@ -183,53 +191,42 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   // printf("x:%f,y:%f\n", pole_rel(0), pole_rel(1));
 
-  p=pole_rel(0);
-  q=pole_rel(1);
+  pole_rel_x=pole_rel(0);
+  pole_rel_y=pole_rel(1);
 
-  float *ranges;
-  ranges = (float*)malloc(lrf_num*sizeof(float));
-  if (ranges == NULL)
+  detect_cercle_cuda(msg.ranges, lrf_num, msg.angle_min, msg.angle_increment, x_wid, y_wid, x_num, y_num, near_x, near_y, thr, thr2, &pole_rel_x, &pole_rel_y, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, weight, warp, limit_count);
+
+  if (false==calc_flag)
   {
+    // 計算できなかった時
     return;
   }
 
-  for (int i = lrf_begin; i <= lrf_end; i++)
-  {
-    ranges[i-lrf_begin]=(float)msg.ranges[i];
-  }
+  write_cercle(pole_rel_x, pole_rel_y, rad, var::marker_pub);
 
-  detect_cercle_cuda(ranges, lrf_num, lrf_begin, msg.angle_min, msg.angle_increment, x_wid, y_wid, x_num, y_num, near_x, near_y, thr, thr2, &p, &q, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, weight, warp, limit_count);
+  //printf("p:%f,q:%f\n", p, q);
+  Eigen::Vector4d pole_rel_modify;
+  pole_rel_modify << pole_rel_x, pole_rel_y, 0, 1;
+  // 検出後のLRFから見たポールの位置.
 
-  if(true==calc_flag)
-  {
-    write_cercle(p, q, rad, marker_pub);
+  const Eigen::Vector4d pole_abs_modify = AbsToLRF * pole_rel_modify;
+  // 検出後のポールの絶対位置.
 
-    //printf("p:%f,q:%f\n", p, q);
-    Eigen::Vector4d pole_rel_modify;
-    pole_rel_modify << p, q, 0, 1;
-    // 検出後のLRFから見たポールの位置.
+  Eigen::Matrix4d AbsToModify = TransMatrix(pole_abs(0) - pole_abs_modify(0), pole_abs(1) - pole_abs_modify(1));
 
-    const Eigen::Vector4d pole_abs_modify = AbsToLRF * pole_rel_modify;
-    // 検出後のポールの絶対位置.
+  Eigen::Vector4d machine_abs;
+  machine_abs << var::x, var::y, 0, 1;
+  // 機体の自己位置
 
-    Eigen::Matrix4d AbsToModify = TransMatrix(pole_abs(0) - pole_abs_modify(0), pole_abs(1) - pole_abs_modify(1));
+  Eigen::Vector4d machine_abs_modify = AbsToModify * machine_abs;
+  // 機体の修正後の自己位置
 
-    Eigen::Vector4d machine_abs;
-    machine_abs << x, y, 0, 1;
-    // 機体の自己位置
+  std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
 
-    Eigen::Vector4d machine_abs_modify = AbsToModify * machine_abs;
-    // 機体の修正後の自己位置
+  var::msg.MB_pole = var::MB_pole;
+  var::msg.x = machine_abs_modify(0);
+  var::msg.y = machine_abs_modify(1);
+  var::msg.stamp = ros::Time::now();
 
-    std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
-
-    detect_cercle::Joutput msg;
-
-    msg.MB_pole = MB_pole;
-    msg.x = machine_abs_modify(0);
-    msg.y = machine_abs_modify(1);
-    msg.stamp = ros::Time::now();
-
-    Jdata_pub.publish(msg);
-  }
+  var::Jdata_pub.publish(var::msg);
 }

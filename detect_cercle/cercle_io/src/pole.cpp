@@ -6,7 +6,7 @@ Pole::Pole(double x, double y, int n)
   num = n;
 }
 
-Eigen::Vector4d Pole::getVector(void)
+Eigen::Vector4d Pole::getVector(void) const
 {
   return position;
 }

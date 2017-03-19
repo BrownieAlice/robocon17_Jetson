@@ -10,7 +10,7 @@ class Pole
     int num;
   public:
     Pole(double x, double y, int n);
-    Eigen::Vector4d getVector(void);
+    Eigen::Vector4d getVector(void) const;
 //    void setVector(Eigen::Vector4d vec);
 };
 
