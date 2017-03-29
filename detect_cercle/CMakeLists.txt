@@ -33,7 +33,7 @@ set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
 set(LIB_TYPE STATIC)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(CMAKE_C_FLAGS "-Wall -O2 -march=native")
-set(CMAKE_CXX_FLAGS "-D_FORCE_INLINES -Wall -O2 -march=native -std=c++14")
+set(CMAKE_CXX_FLAGS "-D_FORCE_INLINES -Wall -O2 -march=native -std=c++11")
 
 catkin_package(
   CATKIN_DEPENDS message_runtime
