@@ -17,7 +17,7 @@ namespace
 {
   namespace param
   {
-    constexpr double LRF_diff_x = 0.2, LRF_diff_y = 0;
+    constexpr double LRF_diff_x = 0.435, LRF_diff_y = 0;
     // LRF座標系での話
 
     constexpr int pole_num = 7;
@@ -55,11 +55,11 @@ namespace
   constexpr int lrf_data = 1081;
   // LRFの総データ数
 
-  const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.01,allow_err1=0.01,allow_err2=0.005;
+  const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.03,allow_err1=0.01,allow_err2=0.005;
   const float x_wid=0.01,y_wid=0.01;
   const int x_num=256,y_num=256;
   const int lrf_begin=29,lrf_end=lrf_data-29,lrf_num=lrf_end-lrf_begin+1;
-  const int near_x=6,near_y=6,thr=1,thr2=3;
+  const int near_x=6,near_y=6,thr=1,thr2=8;
   const float weight=5;
   const int warp=32,limit_count=50;
   float pole_rel_x=0,pole_rel_y=0;
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "cercle_io");
   ros::NodeHandle n;
   ros::Subscriber sub = n.subscribe("MBdata", 1, Sub_Callback);
-  ros::Subscriber laser = n.subscribe("scan",1,Laser_Callback);
+  ros::Subscriber laser = n.subscribe("scan_ethLRF",1,Laser_Callback);
   var::Jdata_pub = n.advertise<detect_cercle::Joutput>("Jdata", 1);
   var::marker_pub = n.advertise<visualization_msgs::Marker>("write_cercle", 1);
   ros::Rate loop_rate(10);
@@ -146,6 +146,7 @@ static void Sub_Callback(const detect_cercle::MBinput& msg)
   var::color = (char)msg.color;
   var::x = msg.x;
   var::y = msg.y;
+  var::theta = msg.theta;
   var::stamp = msg.stamp;
   // ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)msg.MB_pole,(char)msg.color,msg.x,msg.y,msg.theta);
 }
@@ -161,7 +162,11 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   var::write_position = false;
 
-  if(var::MB_pole < 0 || param::pole_num <= var::MB_pole)
+  if (var::MB_pole < 0)
+  {
+    return;
+  }
+  if (param::pole_num <= var::MB_pole)
   {
     std::cout << "invalid pole_number" << std::endl;
     return;

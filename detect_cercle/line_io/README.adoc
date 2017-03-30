@@ -1,0 +1,38 @@
+:source-highlighter: coderay
+//ソースコードのハイライトを有効化
+:icons: font
+//NOTEなどのアイコンを有効化
+
+= 直線検出
+:Author:    Takahiro Ishihara
+:Email:     <mrx0806@gmail.com>
+:Date:      2017/2/22
+:Revision:  1.0
+
+== OpenCV入れ方
+link:http://qiita.com/masaniwasdp/items/15b3076aa763839e254e[Quiita]参考
+[source,UNIX]
+----
+$ sudo apt-get install ros-indigo-vision-opencv libopencv-dev python-opencv
+$ rospack profile
+----
+CMakeListsに下記を追記.
+[source,CMakeLists]
+----
+find_package(OpenCV REQUIRED)
+
+target_link_libraries(line_io
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+)
+include_directories(
+   ${OpenCV_INCLUDE_DIRS}
+ )
+
+----
+package.xmlに以下を追加.
+[source,XML]
+----
+<build_depend>opencv2</build_depend>
+<run_depend>opencv2</run_depend>
+----

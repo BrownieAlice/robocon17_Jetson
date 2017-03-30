@@ -27,7 +27,7 @@ void write_cercle(const double x, const double y, const double rad, ros::Publish
 
 static void init_publish()
 {
-  marker.header.frame_id = "/laser";
+  marker.header.frame_id = "/laser_eth";
   marker.ns = "cercle_marker";
   marker.id = 0;
   marker.type = visualization_msgs::Marker::CYLINDER;

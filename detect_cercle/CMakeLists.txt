@@ -5,6 +5,7 @@ project(detect_cercle)
 find_package(CUDA REQUIRED)
 find_package(GLUT)
 find_package(OpenGL)
+find_package(OpenCV REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -19,6 +20,7 @@ add_message_files(
   FILES
   MBinput.msg
   Joutput.msg
+  Jtheta.msg
 )
 
 generate_messages(
@@ -53,3 +55,5 @@ add_subdirectory(cercle_io)
 add_subdirectory(disp_posi)
 
 add_subdirectory(urg_connection)
+
+add_subdirectory(line_io)

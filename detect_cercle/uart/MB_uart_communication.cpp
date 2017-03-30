@@ -12,6 +12,7 @@ Copyright © 2017 Alice.
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
+#include "detect_cercle/Jtheta.h"
 #include "./lib/uart.h"
 #include "./MB_uart_communication_p.h"
 #include <stdint.h>
@@ -34,7 +35,8 @@ namespace
   // uartが何も文字を連続で取得しなかった時に切断されたとみなす回数.
   constexpr char serial_dev[] = "/dev/ttyUSB_MB";
   // シリアルポート名.
-  constexpr int late_ms = 500;
+  const ros::Duration data_late(500e-3);
+  // 許容する遅れ時間.
 
 }  // namespace
 
@@ -46,6 +48,8 @@ int main(int argc, char **argv)
   // MBから受け取ったデータをメイン処理プロセスに引き渡す.
   ros::Subscriber Jdata_sub = n.subscribe("Jdata", 1, subscribe_Jdata);
   // 処理されたデータをMBに引き渡すためにこちらに渡す.
+  ros::Subscriber Jtheta_sub = n.subscribe("Jtheta", 1, subscribe_Jtheta);
+  // 処理された姿勢角データをMBに引き渡すためにこちらに渡す.
 
   while (ros::ok())
   {
@@ -169,6 +173,13 @@ static void subscribe_Jdata(const detect_cercle::Joutput& Jdata)
   uart_flag = 1 == success ? true : false;
 }
 
+static void subscribe_Jtheta(const detect_cercle::Jtheta& Jtheta)
+{
+  int success;
+  success = uart_output(Jtheta.theta, Jtheta.stamp);
+  uart_flag = 1 == success ? true : false;
+}
+
 static int uart_output(const int8_t MB_pole, const float x, const float y, const ros::Time stamp)
 {
     int16_t send_x = static_cast<int>(x*1000);
@@ -189,7 +200,7 @@ static int uart_output(const int8_t MB_pole, const float x, const float y, const
 
     ros::Duration diff = ros::Time::now()-stamp;
 
-    if (late_ms < diff.sec*1000+diff.nsec/1000000)
+    if (data_late < diff)
     {
       ROS_INFO("too late data.");
       return(0);
@@ -208,6 +219,45 @@ static int uart_output(const int8_t MB_pole, const float x, const float y, const
     if (1 == success)
     {
       ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f", static_cast<int>(MB_pole), x, y);
+    }
+
+    free(data);
+    return success;
+}
+
+static int uart_output(const float theta, const ros::Time stamp)
+{
+    int16_t send_theta = static_cast<int>(theta*1000);
+    unsigned char T_L = static_cast<unsigned char>(send_theta);
+    unsigned char T_H = static_cast<unsigned char>((uint16_t)send_theta>>8);
+    /*
+    処理系依存動作
+    */
+
+    unsigned char *data = (unsigned char *)malloc(2);
+    if (NULL == data)
+    {
+      return(-1);
+    }
+
+    ros::Duration diff = ros::Time::now()-stamp;
+
+    if (data_late < diff)
+    {
+      ROS_INFO("too late data.");
+      return(0);
+    }
+
+    data[0] = T_H;
+    data[1] = T_L;
+
+    int success;
+
+    success = put_J_data('Y', data, 2, timeout_us, timeout_lim);
+
+    if (1 == success)
+    {
+      ROS_INFO("Jtheta::theta:%f",theta);
     }
 
     free(data);
