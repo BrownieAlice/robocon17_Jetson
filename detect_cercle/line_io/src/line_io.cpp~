@@ -30,13 +30,13 @@ namespace
     constexpr double angle_reso = M_PI / 180 / 2;
     // ピクセル解像度と角度解像度[deg].
 
-    constexpr int thr = 70;
+    constexpr int thr = 40;
     // 閾値.
 
-    constexpr int thr_len = 350;
+    constexpr int thr_len = 220;
     // 線分と検出する際の線分の最小長.
 
-    constexpr int thr_inter = 90;
+    constexpr int thr_inter = 50;
     // 同一線分とみなす際の線分の間隔.
 
     constexpr double err_theta = 10.0f / 180 * M_PI;
@@ -79,8 +79,6 @@ int main(int argc, char **argv)
 
 void Laser_Callback(const sensor_msgs::LaserScan& msg)
 {
-  ros::Time begin = ros::Time::now();
-
   cvZero(var::img);
 
   int step = var::img->widthStep;
@@ -162,10 +160,5 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
     var::msg.stamp = ros::Time::now();
     var::Jtheta_pub.publish(var::msg);
   }
-
-
-  ros::Time end = ros::Time::now();
-
-  std::cout <<  "time:" << end - begin << std::endl;
   return;
 }

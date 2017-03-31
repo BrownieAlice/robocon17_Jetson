@@ -20,7 +20,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Publisher Jdata_pub = n.advertise<detect_cercle::Joutput>("Jdata", 1);
   ros::Publisher Jtheta_pub = n.advertise<detect_cercle::Jtheta>("Jtheta", 1);
-  ros::Rate loop_rate(5);
+  ros::Rate loop_rate(1);
 
   while (ros::ok())
   {
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     msg2.stamp = ros::Time::now();
     ROS_INFO("Jtheta::theta:%f", msg2.theta);
 
-    Jtheta_pub.publish(msg2);
+    //Jtheta_pub.publish(msg2);
 
 
     ros::spinOnce();

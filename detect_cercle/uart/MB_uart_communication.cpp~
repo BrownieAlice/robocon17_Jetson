@@ -213,7 +213,9 @@ static int uart_output(const int8_t MB_pole, const float x, const float y, const
     data[4] = Y_L;
 
     int success;
+    ROS_INFO("Jdata put start.");
     success = put_J_data('X', data, 5, timeout_us, timeout_lim);
+    ROS_INFO("Jdata put end.");
 
     if (1 == success)
     {
@@ -252,7 +254,9 @@ static int uart_output(const float theta, const ros::Time stamp)
 
     int success;
 
+    ROS_INFO("Jtheta put start.");
     success = put_J_data('Y', data, 2, timeout_us, timeout_lim);
+    ROS_INFO("Jtheta put end.");
 
     if (1 == success)
     {

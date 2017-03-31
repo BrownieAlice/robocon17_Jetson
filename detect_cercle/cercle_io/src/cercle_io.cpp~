@@ -202,7 +202,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   float thr2;
   if(var::MB_pole == 5)
   {
-    thr2 = 15;
+    thr2 = 18;
   }
   else if(var::MB_pole == 6)
   {
@@ -210,7 +210,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   }
   else
   {
-    thr2 = 12;
+    thr2 = 15;
   }
   detect_cercle_cuda(msg.ranges, lrf_num, msg.angle_min, msg.angle_increment, x_wid, y_wid, x_num, y_num, near_x, near_y, thr, thr2, &pole_rel_x, &pole_rel_y, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, weight, warp, limit_count);
 
