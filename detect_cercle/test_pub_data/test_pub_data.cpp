@@ -24,20 +24,22 @@ int main(int argc, char **argv)
 
   while (ros::ok())
   {
+    static float x = 0, theta = 0;
+
     detect_cercle::Joutput msg1;
     detect_cercle::Jtheta msg2;
 
     ROS_INFO("pub test data");
 
     msg1.MB_pole = 1;
-    msg1.x = 30;
+    msg1.x = ++x;
     msg1.y = -30;
     msg1.stamp = ros::Time::now();
     ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f", msg1.MB_pole, msg1.x, msg1.y);
 
     Jdata_pub.publish(msg1);
 
-    msg2.theta = 90.0f / 180 * 3.1415;
+    msg2.theta = ++theta;
     msg2.stamp = ros::Time::now();
     ROS_INFO("Jtheta::theta:%f", msg2.theta);
 
