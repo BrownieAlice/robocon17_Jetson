@@ -146,7 +146,8 @@ static void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_
       ROS_INFO("urg error:%s", urg_error(urg_p));
       ROS_INFO("fail to conect LRF. try to recconect.");
 
-      std::system("dmesg");
+      std::system("dmesg | grep LRF");
+      // おまじない
     }
 
     urg_close(urg_p);
