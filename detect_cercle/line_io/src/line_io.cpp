@@ -100,6 +100,7 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
 {
   image_double lsdImage = new_image_double_ini(param::width, param::height, 0);
   ntuple_list lineSeg = new_ntuple_list(param::dim);
+  // lsd用の構造体を作る.
 
   int step = param::width;
   double range_min = msg.range_min;
@@ -109,15 +110,19 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
   for (size_t i = 0; i < size ; i++)
   {
     double range = msg.ranges[i];
+    // 距離情報.
+
     if(range < range_min)
     {
       continue;
-      // 最低距離より短かったら無視
+      // 最低距離より短かったら無視.
     }
     double angle = angle_min + angle_increment * i;
+    // 角度情報.
 
     double x = range * cos(angle);
     double y = range * sin(angle);
+    // x,y平面での値.
 
     if (x < param::x_min || param::x_max < x || y < param::y_min || param::y_max < y)
     {
@@ -127,20 +132,27 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
 
     int height = static_cast<int>((x - param::x_min) / param::x_wid);
     int width = static_cast<int>((y - param::y_min) / param::y_wid);
+    // 離散化したときのheight,widthの値.
 
     if (param::height <= height || param::width < width || height < 0 || width < 0)
     {
       continue;
       // 配列外参照.
     }
+
     lsdImage->data[step * height + width] += static_cast<double>(msg.intensities[i]);
+    // lsd用の構造体に情報を与える.
   }
 
   lineSeg = LineSegmentDetection(lsdImage, 0.4, 1.0, 1.0, 22.5, 0.0, 0.7, 1024, 255.0, NULL);
+  // 線分検出.
 
   int theta_count = 0;
+  // 何回角度情報があったか.
   double len = 0;
+  // 今まで最も長かった線分の長さ.
   double robot_theta;
+  // 推定したもっともらしい姿勢角情報.
 
   for(unsigned int i = 0; i < lineSeg->size; i++)
   {
@@ -148,24 +160,33 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
     double y0 = lineSeg->values[0 + param::dim * i] * param::y_wid + param::y_min;
     double x1 = lineSeg->values[3 + param::dim * i] * param::x_wid + param::x_min;
     double y1 = lineSeg->values[2 + param::dim * i] * param::y_wid + param::y_min;
+    // 線分情報(ホントの座標系に変換してもいる).
+
     write_line(x0, y0, x1, y1, i, var::marker_pub);
+    // rviz上に線分を表示.
+
     std::cout << "x0:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << x0 << "[m]" << ", ";
     std::cout << "y0:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << y0 << "[m]" << ", ";
     std::cout << "x1:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << x1 << "[m]" << ", ";
     std::cout << "y1:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << y1 << "[m]" << ", ";
+    // 線分情報を標準入出力に出力.
 
     double theta = atan2(y1 - y0, x1 - x0)- M_PI / 2;
+    // 角度を計算.
     if( theta < -M_PI/2 )
     {
       theta += M_PI;
     }
+    // 角度を -PI/2以上PI/2以下にする.
 
     double this_len = (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0);
+    // この線分の長さ(2乗値).
 
     std::cout << "theta:" << std::fixed << std::setprecision(1) << std::setfill(' ') << std::setw(4) << std::right << theta * 180 / M_PI << "[deg]" << std::endl;
 
     if ( len < this_len )
     {
+      // もっとも長い線分ならロボットの姿勢角情報とみなす.
       len = this_len;
       robot_theta = theta;
       theta_count++;
@@ -174,6 +195,7 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
 
   if (theta_count != 0)
   {
+    // 角度を計算できた.
     if ( len < param::min_len )
     {
       // 直線が短すぎる.
@@ -186,7 +208,12 @@ void lsd_detect(const sensor_msgs::LaserScan& msg)
     var::msg.theta = static_cast<float>(robot_theta);
     var::msg.stamp = ros::Time::now();
     var::Jtheta_pub.publish(var::msg);
+    // 発行.
   }
+
+  free_image_double(lsdImage);
+  free_ntuple_list(lineSeg);
+  // メモリ解放.
 }
 
 void CV_hough(const sensor_msgs::LaserScan& msg)
