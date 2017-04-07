@@ -15,6 +15,7 @@
 #include <thrust/sort.h>
 #include "../include/detect_cercle_cuda_p.h"
 
+/*
 __global__ void find_cercle(int *list_d, float *cercle_d, int *head_d, const int near_x,const int near_y,const int x_num,const int y_num, const int thr, const float weight){
   const int i = blockIdx.x, j = threadIdx.x;
   //blockIdx.x…何個目のxか threadIdx.x…何個目のyか
@@ -65,6 +66,7 @@ __global__ void find_cercle(int *list_d, float *cercle_d, int *head_d, const int
   //flag==trueなら書き込み
 
 }
+*/
 
 __global__ void cuda_select_data(float *xy_data_d,bool *data_list_d,const int lrf_num,const float p,const float q,const float radius,const float rad_err){
   const int num = blockIdx.x*blockDim.x+threadIdx.x;
@@ -182,7 +184,7 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
 
   if (lrf_num>1024)
   {
-    std::cout << "too many number to see.\n" << std::endl;
+    std::cout << "too many number to see." << std::endl;
     return;
   }
   //gpuの可能並列化数を超えていたらreturn
@@ -202,6 +204,7 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   thrust::host_vector<float> host_xy_data(2 * lrf_num);
   // ホスト用のx-yデータ格納用のvector.
   thrust::copy(host_ranges.begin(), host_ranges.end(), device_ranges.begin());
+  // デバイスに距離情報をコピー.
 
   dim3 block_0((int)floor((lrf_num+warp-1)/warp),1,1);
   dim3 thread_0(warp,1,1);
@@ -233,89 +236,71 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
 
   make_hough_graph<<<blocks_1,threads_1>>>((float *)thrust::raw_pointer_cast(device_xy_data.data()), (int *)thrust::raw_pointer_cast(device_hough_list.data()), *p, *q, x_num, y_num, x_wid, y_wid, x_range, y_range, rad);
 
-  int *list_d = (int *)thrust::raw_pointer_cast(device_hough_list.data());
-  // デバイス用ハフ変換グラフ.
+  // print_hough_gragh(device_hough_list, x_num, y_num);
+  // ハフ変換グラフを表示.
 
-  /*
-    // ハフ変換グラフを表示.
-    thrust::host_vector<int> host_hough_list(x_num * y_num);
-    // デバイス用のハフ変換データ格納用のvector.
+  thrust::device_vector<float> device_cercle(2 * x_num * y_num);
+  // デバイス用の検出円格納用のvector.
+  thrust::host_vector<float> host_cercle(2 * x_num * y_num);
+  // ホスト用の検出円格納用のvector.
 
-    thrust::copy(device_hough_list.begin(), device_hough_list.end(), host_hough_list.begin());
-    // ホストにハフ変換データをコピー.
+  thrust::device_vector<int> device_head(1);
+  // デバイス用の検出円数格納用のvector.
+  thrust::host_vector<int> host_head(1);
+  // ホスト用の検出円数格納用のvector.
 
-    for (int i = 0; i < x_num; i++)
-    {
-      printf("x=%d:", i);
-        for (int j = 0; j < y_num; j++)
-        {
-          if (device_hough_list[i * y_num + j] >= 2)
-          {
-            printf("y=%d,%d ", j,  (int)device_hough_list[i*y_num + j]);
-          }
-        }
-      printf("\n");
-    }
-  */
+  host_head[0] = 0;
 
-  float *cercle;
-  cercle = (float*)malloc(x_num*y_num* 2* sizeof(float));
-  //円情報
-
-  /*
-  for (int i = 0; i < theta_num*rho_num*2; i++)line[i] = 0;
-  //直線情報初期化
-  */
-
-  float *cercle_d;
-  cudaMalloc((void**)&cercle_d, x_num*y_num*2 * sizeof(float));
-  cudaMemcpy(cercle_d, cercle, x_num*y_num *2* sizeof(float), cudaMemcpyHostToDevice);
-  //デバイス用直線情報
-
-  int head[1] = { 0 };
-  int *head_d;
-  cudaMalloc((void**)&head_d, sizeof(int));
-  cudaMemcpy(head_d, head, sizeof(int), cudaMemcpyHostToDevice);
-  //配列書き込み位置取得用グローバルメモリ上変数
+  thrust::copy(host_head.begin(), host_head.end(), device_head.begin());
+  // デバイスに検出円数をコピー.
 
   dim3 blocks_2(x_num, 1, 1);
   dim3 threads_2(y_num, 1,1);
 
-  find_cercle<<<blocks_2,threads_2>>>(list_d,cercle_d,head_d,near_x,near_y,x_num,y_num,thr,weight);
+  find_cercle<<<blocks_2,threads_2>>>((int *)thrust::raw_pointer_cast(device_hough_list.data()), (float *)thrust::raw_pointer_cast(device_cercle.data()), (int *)thrust::raw_pointer_cast(device_head.data()), near_x, near_y, x_num, y_num, thr, weight);
+  // 円検出.
 
-  cudaMemcpy(cercle, cercle_d, x_num*y_num*2 * sizeof(float), cudaMemcpyDeviceToHost);
-  cudaMemcpy(head, head_d, sizeof(int), cudaMemcpyDeviceToHost);
+  thrust::copy(device_cercle.begin(), device_cercle.end(), host_cercle.begin());
+  // ホストにx-yデータをコピー.
+  thrust::copy(device_head.begin(), device_head.end(), host_head.begin());
+  // ホストにx-yデータをコピー.
 
-  float *find_cercles;
-  find_cercles = (float*)malloc(head[0]*2*sizeof(float));
-  memcpy(find_cercles, cercle, head[0]*2*sizeof(float));
-  //不必要にでかいcercleを使わず必要数だけ保管するfind_cercle配列を作る
 
-  //printf("head:%d\n", head[0]);
-  float x_esti,y_esti;
-  if(head[0]!=0){
-    const float x_b=*p,y_b=*q;
-    x_esti=(float)(find_cercles[0]-x_num/2)* x_wid+x_b;
-    y_esti=(float)(find_cercles[1]-y_num/2)* y_wid+y_b;
-    float diff=(x_b-x_esti)*(x_b-x_esti)+(y_b-y_esti)*(y_b-y_esti);
-    for (int i = 1; i < head[0]; i++){
-      const float now_x=(float)(find_cercles[2 * i]-x_num/2)* x_wid+x_b;
-      const float now_y=(float)(find_cercles[2 * i+1]-y_num/2)* y_wid+y_b;
-      const float now_diff=(x_b-now_x)*(x_b-now_x)+(y_b-now_y)*(y_b-now_y);
-      if(diff>now_diff){
-	x_esti=now_x;
-	y_esti=now_y;
-	diff=now_diff;
+  float x_esti, y_esti;
+  if(host_head[0] != 0){
+    const float x_b = *p, y_b = *q;
+    // x-yの中心位置(オフセット).
+    x_esti = (float)(host_cercle[0] - x_num / 2) * x_wid + x_b;
+    y_esti = (float)(host_cercle[1] - y_num / 2) * y_wid + y_b;
+    // 検出したx-yデータ.
+
+    float diff = (x_b-x_esti) * (x_b-x_esti) + (y_b-y_esti) * (y_b-y_esti);
+    // 中心位置からのズレ.
+
+    for (int i = 1; i < host_head[0]; i++){
+      const float now_x = (float)(host_cercle[2 * i] - x_num/2) * x_wid + x_b;
+      const float now_y = (float)(host_cercle[2 * i + 1] - y_num/2) * y_wid + y_b;
+      const float now_diff = (x_b-now_x) * (x_b-now_x) + (y_b-now_y) * (y_b-now_y);
+      if (diff > now_diff)
+      {
+        x_esti = now_x;
+	      y_esti = now_y;
+	      diff = now_diff;
       }
     }
   }
-  //予想のp-qに一番近いものを選んでいる
+  // 予想の位置に一番近いものを選んでいる.
 
-  //for(int i=0;i<head[0];i++)printf("x:%f\ny:%f\n", (float)(find_cercles[2 * i]-x_num/2)* x_wid+x, (float)(find_cercles[2 * i+1]-y_num/2)* y_wid+y);
-  //printf("hough-x:%f\nhough-y:%f\n",x_esti,y_esti);
-  //printf("before_esti_x:%f\nbefore_esti_y:%f\n",*p,*q);
 
-  if(head[0]!=0){
+  if (host_head[0] != 0){
+    printf("%d\n",host_head[0]);
+   *p=x_esti;
+   *q=y_esti;
+   *calc_flag=true;
+   return;
+  }
+
+  if (host_head[0] != 0){
     //ここから2回目の処理
     float *select_datas;
     select_datas=(float*)malloc(lrf_num*2*sizeof(float));
@@ -348,11 +333,6 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
     free(select_datas);
     }
 
-  free(cercle);
-  cudaFree(cercle_d);
-  cudaFree(head_d);
-  free(find_cercles);
-
   //printf("time:%f[ms]\n", (float)(end - start)/CLOCKS_PER_SEC*1000);
   //printf("\n");
   return;
@@ -361,37 +341,43 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
 
 __global__ void make_xy_data(const float *device_ranges, float *device_xy_data, const int lrf_offset, const int lrf_num, const float angle_min, const float angle_increment)
 {
+  // 距離データをx-yデータに変換する.
+
   const int num = blockIdx.x * blockDim.x + threadIdx.x;
+  // 見るべき配列の値.
 
   if (lrf_num < num)
   {
+    // 配列外参照.
     return;
   }
 
   const float rad = (lrf_offset + num) * angle_increment + angle_min;
-  //rad…LRFが取得した距離情報の角度情報
+  // rad…LRFが取得した距離情報の角度情報.
 
   float sinx, cosx;
   __sincosf(rad, &sinx, &cosx);
-  //sin(rad)とcos(rad)を同時取得
+  // sin(rad)とcos(rad)を同時取得.
 
   const float range =  device_ranges[lrf_offset + num];
 
   device_xy_data[2 * num] = range * cosx;
   device_xy_data[2 * num + 1] = range * sinx;
-  //LRFの距離情報をx-y変換
+  // LRFの距離情報をx-y変換.
 }
 
 __global__ void make_hough_graph(float *device_xy_data, int *device_hough_list, const float center_x, const float center_y, const int x_num, const int y_num, const float x_wid, const float y_wid, const float x_range, const float y_range, const float radius){
+  // x-yデータからハフ変換したデータ列を作る.
+
   const int i = blockIdx.x, j = threadIdx.x;
-  //blockIdx.x…LRFの何個目の距離情報か threadIdx.x…何個目のxか.
+  // blockIdx.x…LRFの何個目の距離情報か threadIdx.x…何個目のxか.
 
   const float laser_x = device_xy_data[2 * i];
   const float laser_y = device_xy_data[2 * i + 1];
-  //LRFの距離情報をx-y変換
+  // LRFの距離情報をx-y変換した情報.
 
   const bool flag = laser_x > center_x - x_range && laser_x < center_x + x_range && laser_y > center_y - y_range && laser_y < center_y + y_range;
-  //LRFの距離情報が注目範囲内に収まっているか確認.
+  // LRFの距離情報が注目範囲内に収まっているか確認.
   if (false == flag)
   {
     // 注目範囲外の点だった.
@@ -423,7 +409,7 @@ __global__ void make_hough_graph(float *device_xy_data, int *device_hough_list, 
 
   bool flag1 = hough_y_1 >= 0 && hough_y_1 < y_num;
   bool flag2 = hough_y_2 >= 0 && hough_y_2 < y_num;
-  //ハフ変換で求めたyが範囲内にあるかどうか
+  // ハフ変換で求めたyが範囲内にあるかどうか.
 
   if (flag1)
   {
@@ -433,5 +419,88 @@ __global__ void make_hough_graph(float *device_xy_data, int *device_hough_list, 
   {
     device_hough_list[j*y_num+hough_y_2]++;
   }
-  //p-q分布の完成
+  // ハフ変換のグラフ完成.
+}
+
+static void print_hough_gragh(thrust::device_vector<int> &device_hough_list, int x_num, int y_num)
+{
+  // ハフ変換のグラフを表示.
+
+  thrust::host_vector<int> host_hough_list(x_num * y_num);
+  // デバイス用のハフ変換データ格納用のvector.
+
+  thrust::copy(device_hough_list.begin(), device_hough_list.end(), host_hough_list.begin());
+  // ホストにハフ変換データをコピー.
+
+  for (int i = 0; i < x_num; i++)
+  {
+    printf("x=%d:", i);
+      for (int j = 0; j < y_num; j++)
+      {
+        if (device_hough_list[i * y_num + j] >= 2)
+        {
+          printf("y=%d,%d ", j,  (int)device_hough_list[i*y_num + j]);
+        }
+      }
+    printf("\n");
+  }
+}
+
+__global__ void find_cercle(int *device_hough_list, float *device_cercle, int *device_head, const int near_x,const int near_y,const int x_num,const int y_num, const int thr, const float weight){
+  // ハフ変換のデータから円を検出する.
+
+  const int i = blockIdx.x, j = threadIdx.x;
+  // blockIdx.x…何個目のxか threadIdx.x…何個目のyか.
+
+  const int pos = i * y_num + j;
+  // ハフ変換グラフの位置に該当する配列の番号.
+
+  const int val = device_hough_list[pos];
+  // 注目する箇所の値.
+
+  if(val < thr)
+  {
+    // 閾値未満.
+    return;
+  }
+
+  const int x_start  = i - near_x <0 ? 0 : i - near_x;
+  const int x_end =  i + near_x >= x_num ? x_num - 1 : i + near_x;
+  const int y_start = j - near_y<0 ? 0 : j - near_y;
+  const int y_end = j + near_y >= y_num ? y_num - 1 : j + near_y;
+  // 範囲情報を元に探索するxの範囲とyの範囲を決定.
+
+  float x_ave = 0, y_ave = 0, count = 0;
+  // xとyの重み付き平均を求めようとしている.
+  // _aveは重みを付けた総和、countは重みの総和.
+  // weighが線形的に見る範囲の数.
+
+  for (int k = x_start; k <= x_end; k++){
+    for (int l = y_start; l <= y_end; l++){
+      const int com = device_hough_list[k * y_num + l];
+      // 比較する場所の値.
+
+      const bool count_flag = (val < com);
+
+      if (true == count_flag)
+      {
+        return;
+      }
+
+      float z = (k-i)*(k-i)+(l-j)*(l-j);
+      z = z < weight * weight ? weight * weight - z : 0;
+      // 重みを計算.
+      x_ave += com * z * k;
+      y_ave += com * z * l;
+      count += com * z;
+    }
+  }
+
+  if (0 != count){
+    int my_head = device_head[0]++;
+    device_cercle[my_head * 2] = x_ave/count;
+    device_cercle[my_head * 2 + 1] = y_ave/count;
+  }
+  // flag==trueなら書き込み.
+
 }

@@ -8,7 +8,7 @@ namespace
   bool flag = false;
 } // namespace
 
-void write_line(const double x1, const double y1, const double x2, const double y2, int n, ros::Publisher &marker_pub)
+void write_line(const double x1, const double y1, const double x2, const double y2, int n, ros::Publisher &marker_pub,const ros::Duration &lifetime)
 {
   if (false == flag)
   {
@@ -25,6 +25,7 @@ void write_line(const double x1, const double y1, const double x2, const double 
   marker.points[1].y = y2;
   marker.points[1].z = 0;
   marker.id = n;
+  marker.lifetime = lifetime;
 
   marker_pub.publish(marker);
 }

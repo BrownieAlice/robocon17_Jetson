@@ -1,3 +1,6 @@
+#define DEIGEN_NO_DEBUG
+#define CERCLE_IO_DEBUG_MODE
+
 #include <Eigen/Dense>
 #include <math.h>
 #include <iostream>
@@ -10,8 +13,6 @@
 #include "../include/pole.h"
 #include "../include/detect_cercle_cuda.h"
 #include "../include/write_cercle.h"
-#define DEIGEN_NO_DEBUG
-#define CERCLE_IO_DEBUG_MODE
 
 namespace
 {
@@ -37,6 +38,20 @@ namespace
       Pole( 7.5, 10.075, 6)
     };
     // ポールの配列
+
+    constexpr float hough_thr_coe = 0.6;
+    // ハフ返還時の閾値. 1[m]あたりの係数.
+
+    constexpr float x_wid = 0.03, y_wid = 0.03;
+    // ハフ変換する際の間隔.
+    constexpr int x_num = 64, y_num = 64;
+    // ハフ変換するときのx,yの個数.
+    constexpr int lrf_num = 1024;
+    // LRFの見る点の数.
+    constexpr int near_x = 8, near_y = 8;
+    // 近傍と見る数.
+    constexpr float weight = 7;
+    // 重み付き平均を求める際の範囲.
   }
 
   namespace var
@@ -52,15 +67,10 @@ namespace
     ros::Time stamp;
   }
 
-  constexpr int lrf_data = 1081;
-  // LRFの総データ数
+
 
   const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.03,allow_err1=0.01,allow_err2=0.005;
-  const float x_wid=0.01,y_wid=0.01;
-  const int x_num=256,y_num=256;
-  const int lrf_begin=29,lrf_end=lrf_data-29,lrf_num=lrf_end-lrf_begin+1;
-  const int near_x=6,near_y=6,thr=1,thr2=8;
-  const float weight=5;
+  const int thr=1,thr2=8;
   const int warp=32,limit_count=50;
   float pole_rel_x=0,pole_rel_y=0;
   bool calc_flag=false;
@@ -168,7 +178,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   }
   if (param::pole_num <= var::MB_pole)
   {
-    std::cout << "invalid pole_number" << std::endl;
+    // std::cout << "invalid pole_number" << std::endl;
     return;
   }
 
@@ -178,7 +188,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   if (param::MBdata_late < diff)
   {
-    // 位置情報がlatemsよりも古い情報なら処理しない.
+    // 位置情報が指定時間よりも古い情報なら処理しない.
     return;
   }
 
@@ -196,8 +206,14 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   // printf("x:%f,y:%f\n", pole_rel(0), pole_rel(1));
 
-  pole_rel_x=pole_rel(0);
-  pole_rel_y=pole_rel(1);
+  pole_rel_x = pole_rel(0);
+  pole_rel_y = pole_rel(1);
+  printf("%f,%f\n", pole_rel_x, pole_rel_y);
+
+  const float pole_dis = sqrt(pole_rel_y * pole_rel_x + pole_rel_y * pole_rel_y);
+  // ポールまでの距離.
+
+  const int hough_thr = static_cast<int>(param::hough_thr_coe * pole_dis);
 
   float thr2;
   if(var::MB_pole == 5)
@@ -212,7 +228,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   {
     thr2 = 12;
   }
-  detect_cercle_cuda(msg.ranges, lrf_num, msg.angle_min, msg.angle_increment, x_wid, y_wid, x_num, y_num, near_x, near_y, thr, thr2, &pole_rel_x, &pole_rel_y, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, weight, warp, limit_count);
+  detect_cercle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, param::x_wid, param::y_wid, param::x_num, param::y_num, param::near_x, param::near_y, hough_thr, thr2, &pole_rel_x, &pole_rel_y, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, param::weight, warp, limit_count);
 
   if (false==calc_flag)
   {
