@@ -29,7 +29,7 @@ TARGET_LINK_LIBRARIES(MB_uart_communication
 ----
 
 === ソースファイル
-`uart.h` をインクルードして使えば良い.使える関数は以下.
+`uart.hpp` をインクルードして使えば良い.使える関数は以下.
 
 * `int open_serial_port(const char *modem_dev)`
 - 指定したポートをuart接続用に開く関数.通信したいなら必ず開いてから通信を開始しないといけない.正常に開けた時は0を,何らかにより開けなかった場合は-1を返す.

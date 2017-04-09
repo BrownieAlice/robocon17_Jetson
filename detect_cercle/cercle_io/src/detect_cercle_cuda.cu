@@ -13,7 +13,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
-#include "../include/detect_cercle_cuda_p.h"
+#include "../include/detect_cercle_cuda_p.hpp"
 
 __global__ void cuda_select_data(float *xy_data_d,bool *data_list_d,const int lrf_num,const float p,const float q,const float radius,const float rad_err){
   const int num = blockIdx.x*blockDim.x+threadIdx.x;
@@ -160,7 +160,10 @@ int detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
   const int lrf_offset = (ranges_num - lrf_num) / 2;
   // lrfデータの中央部分のみを見るため,そのオフセットを指定.
 
-  make_xy_data<<<block_0,thread_0>>>((float *)thrust::raw_pointer_cast(device_ranges.data()), (float *) thrust::raw_pointer_cast(device_xy_data.data()), lrf_offset, lrf_num, angle_min, angle_increment);
+  make_xy_data<<<block_0,thread_0>>>(
+    (float *)thrust::raw_pointer_cast(device_ranges.data()),
+    (float *) thrust::raw_pointer_cast(device_xy_data.data()),
+    lrf_offset, lrf_num, angle_min, angle_increment);
   // x-yデータを作成.
 
   thrust::copy(device_xy_data.begin(), device_xy_data.end(), host_xy_data.begin());

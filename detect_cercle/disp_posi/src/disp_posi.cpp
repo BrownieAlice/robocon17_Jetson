@@ -19,7 +19,7 @@ Copyright © 2017 Alice.
 #include <iostream>
 #include "ros/ros.h"
 #include "detect_cercle/MBinput.h"
-#include "../include/disp_posi_p.h"
+#include "../include/disp_posi_p.hpp"
 
 namespace
 {

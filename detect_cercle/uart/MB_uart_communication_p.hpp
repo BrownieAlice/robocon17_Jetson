@@ -1,5 +1,5 @@
-#ifndef MB_UART
-#define MB_UART
+#ifndef INCLUDED_MB_UART_COMMUNICATION_P
+#define INCLUDED_MB_UART_COMMUNICATION_P
 
 #include "ros/ros.h"
 #include "detect_cercle/Joutput.h"

@@ -1,5 +1,5 @@
-#ifndef DISP_POSISION_OF_ROBOT
-#define DISP_POSISION_OF_ROBOT
+#ifndef INCLUDED_DISP_POSI_P
+#define INCLUDED_DISP_POSI_P
 
 #include <GL/freeglut.h>
 #include "detect_cercle/MBinput.h"

@@ -1,5 +1,5 @@
-#ifndef DETECT_CERCLE_CUDA
-#define DETECT_CERCLE_CUDA
+#ifndef INCLUDED_DETECT_CERCLE_CUDA
+#define INCLUDED_DETECT_CERCLE_CUDA
 
  struct hough_param_str_def {
   float x_wid; // ハフ変換する際のxの間隔.

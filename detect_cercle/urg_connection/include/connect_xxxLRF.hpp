@@ -1,5 +1,5 @@
-#ifndef connect_xxxLRF
-#define connect_xxxLRF
+#ifndef INCLUDED_CONNCET_XXXLRF
+#define INCLUDED_CONNCET_XXXLRF
 
 #include "../lib/urg_utils.h"
 
@@ -30,6 +30,5 @@ namespace param
   extern const char frame_name[];
   // フレーム名.
 }
-
 
 #endif

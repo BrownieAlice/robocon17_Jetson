@@ -17,8 +17,8 @@ Copyright © 2017 Alice.
 #include "../lib/urg_sensor.h"
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
-#include "../include/connect_xxxLRF.h"
-#include "../include/connect_LRF_lib_p.h"
+#include "../include/connect_xxxLRF.hpp"
+#include "../include/connect_LRF_lib_p.hpp"
 
 
 int main(int argc, char **argv)
@@ -146,8 +146,8 @@ static void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_
       ROS_INFO("urg error:%s", urg_error(urg_p));
       ROS_INFO("fail to conect LRF. try to recconect.");
 
-      std::system("dmesg | grep LRF");
-      // おまじない
+      std::system("dmesg | grep URG");
+      // おまじない.
     }
 
     urg_close(urg_p);

@@ -1,7 +1,7 @@
-#ifndef DETECT_CERCLE_CUDA_PRIVATE
-#define DETECT_CERCLE_CUDA_PRIVATE
+#ifndef INCLUDED_DETECT_CERCLE_CUDA_P
+#define INCLUDED_DETECT_CERCLE_CUDA_P
 
-#include "./detect_cercle_cuda.h"
+#include "./detect_cercle_cuda.hpp"
 
 __global__ void make_xy_data(const float *device_ranges, float *device_xy_data, const int lrf_offset, const int lrf_num, const float angle_min, const float angle_increment);
 

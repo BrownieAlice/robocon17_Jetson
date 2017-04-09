@@ -1,6 +1,6 @@
 #include "ros/ros.h"
 #include "visualization_msgs/Marker.h"
-#include "../include/write_line_p.h"
+#include "../include/write_line_p.hpp"
 
 namespace
 {

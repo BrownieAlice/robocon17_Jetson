@@ -1,5 +1,5 @@
-#ifndef CERCLE_IO_DETECT_CERCLE
-#define CERCLE_IO_DETECT_CERCLE
+#ifndef INCLUDED_CERCLE_IO_P
+#define INCLUDED_CERCLE_IO_P
 
 #include <Eigen/Dense>
 #include "detect_cercle/MBinput.h"

@@ -1,5 +1,5 @@
-#ifndef CONNECT_BY_UART
-#define CONNECT_BY_UART
+#ifndef INCLUDED_UART
+#define INCLUDED_UART
 
 #include <stddef.h>
 

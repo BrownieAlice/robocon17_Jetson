@@ -9,10 +9,10 @@
 #include "detect_cercle/Joutput.h"
 #include "sensor_msgs/LaserScan.h"
 #include "visualization_msgs/Marker.h"
-#include "../include/cercle_io_p.h"
-#include "../include/pole.h"
-#include "../include/detect_cercle_cuda.h"
-#include "../include/write_cercle.h"
+#include "../include/cercle_io_p.hpp"
+#include "../include/pole.hpp"
+#include "../include/detect_cercle_cuda.hpp"
+#include "../include/write_cercle.hpp"
 
 namespace
 {

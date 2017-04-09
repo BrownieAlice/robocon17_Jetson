@@ -19,7 +19,7 @@ Copyright © 2017 Alice.
 #include <time.h>
 #include <sys/time.h>
 #include <limits.h>
-#include "./uart_p.h"
+#include "./uart_p.hpp"
 
 namespace
 {
@@ -334,7 +334,7 @@ void close_serial_port(void)
   open_fd = false;
 }
 
-/*
+#ifdef UART_PUT_SERIAL_CHAR
 static int put_serial_char(const unsigned char c, const long int timeout_us, const long int timeout_lim)
 {
 
@@ -375,7 +375,7 @@ static int put_serial_char(const unsigned char c, const long int timeout_us, con
 
   return(1);
 }
-*/
+#endif
 
 static int put_serial_string(const unsigned char *s, const size_t size, const long int timeout_us, const long timeout_lim)
 {

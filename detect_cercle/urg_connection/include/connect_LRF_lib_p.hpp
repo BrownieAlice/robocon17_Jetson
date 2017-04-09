@@ -1,5 +1,5 @@
-#ifndef connect_LRF_lib
-#define connect_LRF_lib
+#ifndef INCLUDED_CONNCET_LRF_LIB
+#define INCLUDED_CONNCET_LRF_LIB
 
 #include <vector>
 #include "../lib/urg_utils.h"

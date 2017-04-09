@@ -1,5 +1,5 @@
-#ifndef LINE_IO_DETECT_CERCLE
-#define LINE_IO_DETECT_CERCLE
+#ifndef INCLUDED_LINE_IO_P
+#define INCLUDED_LINE_IO_P
 
 #include "sensor_msgs/LaserScan.h"
 #include "detect_cercle/MBinput.h"

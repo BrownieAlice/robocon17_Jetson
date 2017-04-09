@@ -1,4 +1,4 @@
-#include "../include/pole.h"
+#include "../include/pole.hpp"
 
 Pole::Pole(double x, double y, int n)
 {
@@ -10,9 +10,3 @@ Eigen::Vector4d Pole::getVector(void) const
 {
   return position;
 }
-/*
-void Pole::setVector(Eigen::Vector4d vec)
-{
-  position = vec;
-}
-*/

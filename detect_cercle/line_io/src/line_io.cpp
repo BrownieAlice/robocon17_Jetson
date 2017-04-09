@@ -13,8 +13,8 @@
 #include "detect_cercle/Jtheta.h"
 #include "detect_cercle/MBinput.h"
 #include "visualization_msgs/Marker.h"
-#include "../include/write_line.h"
-#include "../include/line_io_p.h"
+#include "../include/write_line.hpp"
+#include "../include/line_io_p.hpp"
 
 extern "C"
 {

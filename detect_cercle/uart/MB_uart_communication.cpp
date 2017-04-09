@@ -13,8 +13,8 @@ Copyright © 2017 Alice.
 #include "detect_cercle/MBinput.h"
 #include "detect_cercle/Joutput.h"
 #include "detect_cercle/Jtheta.h"
-#include "./lib/uart.h"
-#include "./MB_uart_communication_p.h"
+#include "./lib/uart.hpp"
+#include "./MB_uart_communication_p.hpp"
 #include <stdint.h>
 
 namespace
