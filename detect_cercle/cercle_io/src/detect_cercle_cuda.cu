@@ -15,59 +15,6 @@
 #include <thrust/sort.h>
 #include "../include/detect_cercle_cuda_p.h"
 
-/*
-__global__ void find_cercle(int *list_d, float *cercle_d, int *head_d, const int near_x,const int near_y,const int x_num,const int y_num, const int thr, const float weight){
-  const int i = blockIdx.x, j = threadIdx.x;
-  //blockIdx.x…何個目のxか threadIdx.x…何個目のyか
-
-  const int pos = i*y_num + j;
-  //p-qグラフの位置に該当する配列の番号
-
-  const int val = list_d[pos];
-  //注目する箇所の値
-
-  const int x_start  = i - near_x <0 ? 0 : i - near_x;
-  const int x_end =  i + near_x >= x_num ? x_num - 1 : i + near_x;
-  const int y_start = j - near_y<0 ? 0 : j - near_y;
-  const int y_end = j + near_y >= y_num ? y_num - 1 : j + near_y;
-  //範囲情報を元に探索するxの範囲とyの範囲を決定
-  float x_ave=0,x_count=0,y_ave=0,y_count=0;
-  //xとyの重み付き平均を求めようとしている
-  //_aveは重みを付けた総和、_countは重みの総和
-  //weighが線形的に見る範囲の数
-
-  int count = 0;
-  for (int k = x_start; k <= x_end; k++){
-    for (int l = y_start; l <= y_end; l++){
-      const int com=list_d[k*y_num+l];
-      const bool count_flag=(val < com)||(val==com&&pos<k*y_num+l);
-      count +=(int)count_flag;
-      float z=sqrt((float)((k-i)*(k-i)+(l-j)*(l-j)));
-      z=z<weight?weight-z:0;
-      //重みを計算
-      x_ave+=com*z*k;
-      x_count+=com*z;
-      y_ave+=com*z*l;
-      y_count+=com*z;
-    }
-  }
-
-  bool flag = count==0;
-  //極大の時true、それ以外flase
-
-  flag = flag&&list_d[pos]>thr;
-  //閾値を考慮
-
-  if (flag){
-    int my_head = head_d[0]++;
-    cercle_d[my_head * 2] = x_ave/x_count;
-    cercle_d[my_head * 2 + 1] = y_ave/y_count;
-  }
-  //flag==trueなら書き込み
-
-}
-*/
-
 __global__ void cuda_select_data(float *xy_data_d,bool *data_list_d,const int lrf_num,const float p,const float q,const float radius,const float rad_err){
   const int num = blockIdx.x*blockDim.x+threadIdx.x;
   if(num<lrf_num){
@@ -156,7 +103,7 @@ void mle(float *select_datas,int select_data_num,const float rad,float *x_esti,f
   }
 }
 
-void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num,const float angle_min,const float angle_increment,const float x_wid,const float y_wid,const int x_num,const int y_num,const int near_x,const int near_y,const int thr,const int thr2,float *p,float *q,bool *calc_flag,const float rad,const float rad_err1,const float rad_err2,const float rad_err3,const float allow_err1,const float allow_err2,const float weight, const int warp,const int limit_count){
+int detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num, const float angle_min, const float angle_increment, const hough_param_str *hough_param, const int thr2, float *p, float *q, const float rad, const float rad_err1, const float rad_err2, const float rad_err3, const float allow_err1, const float allow_err2, const int warp, const int limit_count){
   /*
     struct timeval start,end;
     時間計測用
@@ -179,13 +126,13 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
     cudaEventDestory(start);
     cudaEventDestory(end);
   */
-  //printf("num:%d,theta_num:%d,rho_num:%d\n", num, theta_num, rho_num);
-  *calc_flag=false;
 
-  if (lrf_num>1024)
+  int calc_flag = -1;
+
+  if (lrf_num > 1024)
   {
     std::cout << "too many number to see." << std::endl;
-    return;
+    return calc_flag;
   }
   //gpuの可能並列化数を超えていたらreturn
 
@@ -193,8 +140,8 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   if (ranges_num < lrf_num)
   {
     // LRFの距離データの数が少なすぎた時.
-    std::cout << "few number of lrf data" << std::endl;
-    return;
+    std::cout << "few number of lrf data." << std::endl;
+    return calc_flag;
   }
 
   thrust::device_vector<float> device_ranges(host_ranges.size());
@@ -223,25 +170,30 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   xy_data = (float *) thrust::raw_pointer_cast(host_xy_data.data());
   xy_data_d = (float *) thrust::raw_pointer_cast(device_xy_data.data());
 
-  const float x_range = x_num / 2 * x_wid;
-  const float y_range = y_num / 2 * y_wid;
+  const float x_range = hough_param->x_num / 2 * hough_param->x_wid;
+  const float y_range = hough_param->y_num / 2 * hough_param->y_wid;
   // ハフ変換時に見る範囲.
 
-  thrust::device_vector<int> device_hough_list(x_num * y_num, 0);
+  thrust::device_vector<int> device_hough_list(hough_param->x_num * hough_param->y_num, 0);
   // デバイス用のハフ変換データ格納用のvector.
 
   dim3 blocks_1(lrf_num, 1, 1);
-  dim3 threads_1(x_num,1,1);
+  dim3 threads_1(hough_param->x_num,1,1);
   // 並列化.
 
-  make_hough_graph<<<blocks_1,threads_1>>>((float *)thrust::raw_pointer_cast(device_xy_data.data()), (int *)thrust::raw_pointer_cast(device_hough_list.data()), *p, *q, x_num, y_num, x_wid, y_wid, x_range, y_range, rad);
+  make_hough_graph<<<blocks_1,threads_1>>>((float *)thrust::raw_pointer_cast(device_xy_data.data()),
+  (int *)thrust::raw_pointer_cast(device_hough_list.data()),
+  *p, *q,
+  hough_param->x_num, hough_param->y_num,
+  hough_param->x_wid, hough_param->y_wid,
+  x_range, y_range, rad);
 
   // print_hough_gragh(device_hough_list, x_num, y_num);
   // ハフ変換グラフを表示.
 
-  thrust::device_vector<float> device_cercle(2 * x_num * y_num);
+  thrust::device_vector<float> device_cercle(2 * hough_param->x_num * hough_param->y_num);
   // デバイス用の検出円格納用のvector.
-  thrust::host_vector<float> host_cercle(2 * x_num * y_num);
+  thrust::host_vector<float> host_cercle(2 * hough_param->x_num * hough_param->y_num);
   // ホスト用の検出円格納用のvector.
 
   thrust::device_vector<int> device_head(1);
@@ -254,10 +206,15 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   thrust::copy(host_head.begin(), host_head.end(), device_head.begin());
   // デバイスに検出円数をコピー.
 
-  dim3 blocks_2(x_num, 1, 1);
-  dim3 threads_2(y_num, 1,1);
+  dim3 blocks_2(hough_param->x_num, 1, 1);
+  dim3 threads_2(hough_param->y_num, 1,1);
 
-  find_cercle<<<blocks_2,threads_2>>>((int *)thrust::raw_pointer_cast(device_hough_list.data()), (float *)thrust::raw_pointer_cast(device_cercle.data()), (int *)thrust::raw_pointer_cast(device_head.data()), near_x, near_y, x_num, y_num, thr, weight);
+  find_cercle<<<blocks_2,threads_2>>>((int *)thrust::raw_pointer_cast(device_hough_list.data()),
+  (float *)thrust::raw_pointer_cast(device_cercle.data()),
+  (int *)thrust::raw_pointer_cast(device_head.data()),
+  hough_param->near_x, hough_param->near_y,
+  hough_param->x_num, hough_param->y_num,
+  hough_param->thr, hough_param->weight);
   // 円検出.
 
   thrust::copy(device_cercle.begin(), device_cercle.end(), host_cercle.begin());
@@ -270,16 +227,16 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   if(host_head[0] != 0){
     const float x_b = *p, y_b = *q;
     // x-yの中心位置(オフセット).
-    x_esti = (float)(host_cercle[0] - x_num / 2) * x_wid + x_b;
-    y_esti = (float)(host_cercle[1] - y_num / 2) * y_wid + y_b;
+    x_esti = (float)(host_cercle[0] - hough_param->x_num / 2) * hough_param->x_wid + x_b;
+    y_esti = (float)(host_cercle[1] - hough_param->y_num / 2) * hough_param->y_wid + y_b;
     // 検出したx-yデータ.
 
     float diff = (x_b-x_esti) * (x_b-x_esti) + (y_b-y_esti) * (y_b-y_esti);
     // 中心位置からのズレ.
 
     for (int i = 1; i < host_head[0]; i++){
-      const float now_x = (float)(host_cercle[2 * i] - x_num/2) * x_wid + x_b;
-      const float now_y = (float)(host_cercle[2 * i + 1] - y_num/2) * y_wid + y_b;
+      const float now_x = (float)(host_cercle[2 * i] - hough_param->x_num / 2) * hough_param->x_wid + x_b;
+      const float now_y = (float)(host_cercle[2 * i + 1] - hough_param->y_num / 2) * hough_param->y_wid + y_b;
       const float now_diff = (x_b-now_x) * (x_b-now_x) + (y_b-now_y) * (y_b-now_y);
       if (diff > now_diff)
       {
@@ -291,14 +248,15 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
   }
   // 予想の位置に一番近いものを選んでいる.
 
-
+  /*
   if (host_head[0] != 0){
     printf("%d\n",host_head[0]);
-   *p=x_esti;
-   *q=y_esti;
-   *calc_flag=true;
-   return;
+    *p = x_esti;
+    *q = y_esti;
+    calc_flag = 0;
+    return calc_flag;
   }
+  */
 
   if (host_head[0] != 0){
     //ここから2回目の処理
@@ -325,9 +283,9 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
     select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err3,warp);
     //printf("select:%d\n",select_data_num);
      if(select_data_num>thr2){
-      *p=x_esti;
-      *q=y_esti;
-      *calc_flag=true;
+      *p = x_esti;
+      *q = y_esti;
+      calc_flag = 0;
       // printf("p=%f\nq=%f\n",*p,*q);
      }
     free(select_datas);
@@ -335,7 +293,7 @@ void detect_cercle_cuda(const std::vector<float>& host_ranges, const int lrf_num
 
   //printf("time:%f[ms]\n", (float)(end - start)/CLOCKS_PER_SEC*1000);
   //printf("\n");
-  return;
+  return calc_flag;
 
 }
 

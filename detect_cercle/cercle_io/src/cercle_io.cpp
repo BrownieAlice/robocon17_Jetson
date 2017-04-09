@@ -42,16 +42,22 @@ namespace
     constexpr float hough_thr_coe = 0.6;
     // ハフ返還時の閾値. 1[m]あたりの係数.
 
-    constexpr float x_wid = 0.03, y_wid = 0.03;
-    // ハフ変換する際の間隔.
-    constexpr int x_num = 64, y_num = 64;
-    // ハフ変換するときのx,yの個数.
+    hough_param_str hough_param = {
+      0.03f, // x_wid.   ハフ変換する際のxの間隔.
+      0.03f, // y_wid.   ハフ変換する際のyの間隔.
+      64,   // x_num.   ハフ変換する際のxの個数.
+      64,   // y_num.   ハフ変換する際のyの個数.
+      8,    // near_x.  ハフ変換する際のxの近傍とみなす個数.
+      8,    // near_y.  ハフ変換する際のyの近傍とみなす個数.
+      7.0f,  // weight.  重み付き平均を求める際の範囲.
+      0     // thr.     ハフ変換する際の閾値.
+    };
+
     constexpr int lrf_num = 1024;
     // LRFの見る点の数.
-    constexpr int near_x = 8, near_y = 8;
-    // 近傍と見る数.
-    constexpr float weight = 7;
-    // 重み付き平均を求める際の範囲.
+
+    constexpr float rad = 0.28f / 2;
+    // ポールの半径.
   }
 
   namespace var
@@ -67,13 +73,10 @@ namespace
     ros::Time stamp;
   }
 
-
-
-  const float rad=0.28/2,rad_err1=0.1,rad_err2=0.05,rad_err3=0.03,allow_err1=0.01,allow_err2=0.005;
-  const int thr=1,thr2=8;
+  const float rad_err1=0.1,rad_err2=0.05,rad_err3=0.03,allow_err1=0.01,allow_err2=0.005;
+  const int thr2=8;
   const int warp=32,limit_count=50;
   float pole_rel_x=0,pole_rel_y=0;
-  bool calc_flag=false;
   /*
    rad…ポールの半径
    rad_err1…1回目のハフ変換で求めた円の座標からの許容するズレ
@@ -163,7 +166,7 @@ static void Sub_Callback(const detect_cercle::MBinput& msg)
 
 void Laser_Callback(const sensor_msgs::LaserScan& msg)
 {
-  // LRFデータの購読
+  // LRFデータの購読.
   if (false == var::write_position)
   {
     // なにも書き込まれていない時.
@@ -172,13 +175,9 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   var::write_position = false;
 
-  if (var::MB_pole < 0)
+  if (var::MB_pole < 0 || param::pole_num <= var::MB_pole)
   {
-    return;
-  }
-  if (param::pole_num <= var::MB_pole)
-  {
-    // std::cout << "invalid pole_number" << std::endl;
+    // 本来のポール番号を示していない.
     return;
   }
 
@@ -213,7 +212,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   const float pole_dis = sqrt(pole_rel_y * pole_rel_x + pole_rel_y * pole_rel_y);
   // ポールまでの距離.
 
-  const int hough_thr = static_cast<int>(param::hough_thr_coe * pole_dis);
+  param::hough_param.thr = static_cast<int>(param::hough_thr_coe * pole_dis);
 
   float thr2;
   if(var::MB_pole == 5)
@@ -228,15 +227,16 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   {
     thr2 = 12;
   }
-  detect_cercle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, param::x_wid, param::y_wid, param::x_num, param::y_num, param::near_x, param::near_y, hough_thr, thr2, &pole_rel_x, &pole_rel_y, &calc_flag, rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, param::weight, warp, limit_count);
 
-  if (false==calc_flag)
+  const int calc_success = detect_cercle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, &param::hough_param, thr2, &pole_rel_x, &pole_rel_y, param::rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, warp, limit_count);
+
+  if (-1 == calc_success)
   {
     // 計算できなかった時
     return;
   }
 
-  write_cercle(pole_rel_x, pole_rel_y, rad, var::marker_pub);
+  write_cercle(pole_rel_x, pole_rel_y, param::rad, var::marker_pub);
 
   //printf("p:%f,q:%f\n", p, q);
   Eigen::Vector4d pole_rel_modify;

@@ -55,7 +55,7 @@ namespace
     constexpr int dim = 5;
     // 検出する直線数.
 
-    constexpr double min_len = 5;
+    constexpr double min_len = 2;
     // 最小の直線の長さ.
 
     constexpr int loop_hz = 4;
