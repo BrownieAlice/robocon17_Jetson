@@ -85,8 +85,9 @@ namespace
     detect_cercle::Jtheta msg;
     // ROSノード用の変数.
 
-    bool write_position=false;
+    bool write_position = false;
     float theta;
+    char color;
     ros::Time stamp;
   }
 
@@ -129,6 +130,7 @@ static void MB_Callback(const detect_cercle::MBinput& msg)
   var::write_position = true;
   var::theta = msg.theta;
   var::stamp = msg.stamp;
+  var::color = (char)msg.color;
 }
 
 static void Laser_Callback(const sensor_msgs::LaserScan& msg)
@@ -153,11 +155,20 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   float robot_theta;
   success = lsd_detect(msg, &robot_theta);
 
+  if (var::color == 'B')
+  {
+
+  }
+  else if (var::color == 'R')
+  {
+    robot_theta += M_PI;
+  }
+
   ros::Time end = ros::Time::now();
 
   if ( 0 == success )
   {
-    // 円検出に成功してる.
+    // 直線検出に成功してる.
 
     if (robot_theta < var::theta - param::allow_err || var::theta + param::allow_err < robot_theta)
     {

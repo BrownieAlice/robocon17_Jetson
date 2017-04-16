@@ -209,24 +209,12 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   pole_rel_y = pole_rel(1);
   printf("%f,%f\n", pole_rel_x, pole_rel_y);
 
-  const float pole_dis = sqrt(pole_rel_y * pole_rel_x + pole_rel_y * pole_rel_y);
+  const float pole_dis = sqrt(pole_rel_x * pole_rel_x + pole_rel_y * pole_rel_y);
   // ポールまでの距離.
 
-  param::hough_param.thr = static_cast<int>(param::hough_thr_coe * pole_dis);
+  param::hough_param.thr = static_cast<int>(6 - param::hough_thr_coe * pole_dis);
 
-  float thr2;
-  if(var::MB_pole == 5)
-  {
-    thr2 = 15;
-  }
-  else if(var::MB_pole == 6)
-  {
-    thr2 = 8;
-  }
-  else
-  {
-    thr2 = 12;
-  }
+  const float thr2 = 16 - pole_dis * 0.8;
 
   const int calc_success = detect_cercle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, &param::hough_param, thr2, &pole_rel_x, &pole_rel_y, param::rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, warp, limit_count);
 
