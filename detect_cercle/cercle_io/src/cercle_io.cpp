@@ -18,7 +18,7 @@ namespace
 {
   namespace param
   {
-    constexpr double LRF_diff_x = 0.435, LRF_diff_y = 0;
+    constexpr double LRF_diff_x = 0.4425, LRF_diff_y = 0.4698;
     // LRF座標系での話
 
     constexpr int pole_num = 7;

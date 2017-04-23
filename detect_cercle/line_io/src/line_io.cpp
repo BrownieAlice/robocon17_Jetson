@@ -160,18 +160,20 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   if ( 0 == success )
   {
     // 直線検出に成功してる.
- if (var::color == 'B')
-  {
-
-  }
-  else if (var::color == 'R')
-  {
-    robot_theta += M_PI;
-  }
-  else
+    if (var::color == 'B')
     {
+      // 青フィールド時.
+    }
+    else if (var::color == 'R')
+    {
+      // 赤フィールド時.
+      robot_theta += M_PI;
+    }
+    else
+    {
+      // それ以外の文字.
       return;
-}
+    }
 
     if (robot_theta < var::theta - param::allow_err || var::theta + param::allow_err < robot_theta)
     {
