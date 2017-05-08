@@ -6,11 +6,7 @@
 
 static void MB_Callback(const detect_circle::MBinput& msg);
 static void Laser_Callback(const sensor_msgs::LaserScan& msg);
-static int lsd_detect(const sensor_msgs::LaserScan& msg, float *robot_theta_return);
-
-#ifndef OPENCV_NOT_USE
-static int CV_hough(const sensor_msgs::LaserScan& msg, float *robot_theta_return);
-#endif
+static int lsd_detect(const sensor_msgs::LaserScan& msg, float *robot_theta_return, float *line_distance, double origin_x, double origin_y);
 
 #ifndef M_PI
 #define M_PI 3.1415
