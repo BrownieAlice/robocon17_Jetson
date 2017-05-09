@@ -36,7 +36,8 @@ namespace
     constexpr int dim = 5;
     // 検出する直線数.
 
-    constexpr double min_len = 2;
+    constexpr double min_len = 1.5;
+    constexpr double min_len_sq = min_len * min_len;
     // 最小の直線の長さ.
 
     constexpr int loop_hz = 4;
@@ -276,7 +277,7 @@ static int lsd_detect(const sensor_msgs::LaserScan& msg, double *robot_theta_ret
   if (theta_count != 0)
   {
     // 角度を計算できた.
-    if ( param::min_len < len )
+    if ( param::min_len_sq < len )
     {
       // 直線が指定以上の長さがある.
 
