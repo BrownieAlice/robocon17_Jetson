@@ -4,7 +4,7 @@
 #include <iostream>
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
-#include "detect_circle/Jtheta.h"
+#include "detect_circle/Jline.h"
 #include "detect_circle/MBinput.h"
 #include "visualization_msgs/Marker.h"
 #include "../include/write_line.hpp"
@@ -45,10 +45,10 @@ namespace
     const ros::Duration MBdata_late(500e-3);
     // 許容する遅れ時間.
 
-    const ros::Duration lifetime(1/static_cast<float>(loop_hz));
+    const ros::Duration lifetime(1/static_cast<double>(loop_hz));
     // 許容する遅れ時間.
 
-    constexpr float allow_err = 10.0f / 180 * M_PI;
+    constexpr double allow_err = 10.0f / 180 * M_PI;
     // 許容する与えられた姿勢角と計算した角度のずれ[rad].
 
     constexpr double lrf_diff_x = 0.4425;
@@ -59,12 +59,12 @@ namespace
   namespace var
   {
     ros::Publisher marker_pub;
-    ros::Publisher Jtheta_pub;
-    detect_circle::Jtheta msg;
+    ros::Publisher Jline_pub;
+    detect_circle::Jline msg;
     // ROSノード用の変数.
 
     bool write_position = false;
-    float theta;
+    double theta;
     char color;
     ros::Time stamp;
   }
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Subscriber MB_input = n.subscribe("MBdata", 1, MB_Callback);
   ros::Subscriber laser = n.subscribe("scan_usbLRF",1,Laser_Callback);
-  var::Jtheta_pub = n.advertise<detect_circle::Jtheta>("Jtheta", 1);
+  var::Jline_pub = n.advertise<detect_circle::Jline>("Jline", 1);
   var::marker_pub = n.advertise<visualization_msgs::Marker>("write_line", 1);
   ros::Rate loop_rate(param::loop_hz);
 
@@ -118,8 +118,10 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   #endif
 
   int success;
-  float robot_theta;
-  float line_distance;
+  double robot_theta;
+  // ロボットの姿勢角.
+  double line_distance;
+  // 木枠との距離.
   success = lsd_detect(msg, &robot_theta, &line_distance, -param::lrf_diff_x, -param::lrf_diff_y);
 
   ros::Time end = ros::Time::now();
@@ -151,8 +153,9 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
     std::cout << "robot_theta:" << std::fixed << std::setprecision(1) << std::setfill(' ') << std::setw(4) << std::right << robot_theta * 180 / M_PI << "[deg]" << std::endl;
 
     var::msg.theta = robot_theta;
+    var::msg.line_distance = line_distance;
     var::msg.stamp = ros::Time::now();
-    var::Jtheta_pub.publish(var::msg);
+    var::Jline_pub.publish(var::msg);
     // 発行.
   }
 
@@ -160,7 +163,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   return;
 }
 
-static int lsd_detect(const sensor_msgs::LaserScan& msg, float *robot_theta_return, float *line_distance, double origin_x, double origin_y)
+static int lsd_detect(const sensor_msgs::LaserScan& msg, double *robot_theta_return, double *line_distance, const double origin_x, const double origin_y)
 {
   // LSDを用いた直線検出.
 
@@ -288,7 +291,7 @@ static int lsd_detect(const sensor_msgs::LaserScan& msg, float *robot_theta_retu
       *line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / sqrt(len);
       std::cout << "distance to line:" << *line_distance << "[m]" << std::endl;
 
-      *robot_theta_return = static_cast<float>(robot_theta);
+      *robot_theta_return = robot_theta;
       success = 0;
     }
   }

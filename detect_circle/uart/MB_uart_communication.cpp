@@ -12,7 +12,7 @@ Copyright © 2017 Alice.
 #include "ros/ros.h"
 #include "detect_circle/MBinput.h"
 #include "detect_circle/Joutput.h"
-#include "detect_circle/Jtheta.h"
+#include "detect_circle/Jline.h"
 #include "./lib/uart.hpp"
 #include "./MB_uart_communication_p.hpp"
 #include <stdint.h>
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
   // MBから受け取ったデータをメイン処理プロセスに引き渡す.
   ros::Subscriber Jdata_sub = n.subscribe("Jdata", 1, subscribe_Jdata);
   // 処理されたデータをMBに引き渡すためにこちらに渡す.
-  ros::Subscriber Jtheta_sub = n.subscribe("Jtheta", 1, subscribe_Jtheta);
+  ros::Subscriber Jline_sub = n.subscribe("Jline", 1, subscribe_Jline);
   // 処理された姿勢角データをMBに引き渡すためにこちらに渡す.
 
   while (ros::ok())
@@ -173,92 +173,105 @@ static void subscribe_Jdata(const detect_circle::Joutput& Jdata)
   uart_flag = 1 == success ? true : false;
 }
 
-static void subscribe_Jtheta(const detect_circle::Jtheta& Jtheta)
+static void subscribe_Jline(const detect_circle::Jline& Jline)
 {
-  int success;
-  success = uart_output(Jtheta.theta, Jtheta.stamp);
+  int success = uart_output(Jline.theta, Jline.line_distance Jline.stamp);
   uart_flag = 1 == success ? true : false;
 }
 
 static int uart_output(const int8_t MB_pole, const float x, const float y, const ros::Time stamp)
 {
-    int16_t send_x = static_cast<int>(x*1000);
-    int16_t send_y = static_cast<int>(y*1000);
-    unsigned char X_L = static_cast<unsigned char>(send_x);
-    unsigned char X_H = static_cast<unsigned char>((uint16_t)send_x>>8);
-    unsigned char Y_L = static_cast<unsigned char>(send_y);
-    unsigned char Y_H = static_cast<unsigned char>((uint16_t)send_y>>8);
-    /*
-    処理系依存動作
-    */
+  // 円検出より推定した事故位置情報をMBに送信する.
+  const int16_t send_x = static_cast<int>(x * 1000);
+  const unsigned char X_L = static_cast<unsigned char>(send_x);
+  const unsigned char X_H = static_cast<unsigned char>((uint16_t)send_x>>8);
+  // 推定したx方向の値.
+  const int16_t send_y = static_cast<int>(y * 1000);
+  const unsigned char Y_L = static_cast<unsigned char>(send_y);
+  const unsigned char Y_H = static_cast<unsigned char>((uint16_t)send_y>>8);
+  // 推定したy方向の値.
 
-    unsigned char *data = (unsigned char *)malloc(5);
-    if (NULL == data)
-    {
-      return(-1);
-    }
+  /*
+  処理系依存動作
+  */
 
-    ros::Duration diff = ros::Time::now()-stamp;
+  ros::Duration diff = ros::Time::now()-stamp;
+  if (data_late < diff)
+  {
+    // あまりにも前のデータなら送信しない.
+    ROS_INFO("too late data.");
+    return(0);
+  }
 
-    if (data_late < diff)
-    {
-      ROS_INFO("too late data.");
-      return(0);
-    }
+  const size_t data_num = 5;
+  // 送るデータ数
+  unsigned char *data = (unsigned char *)malloc(data_num);
+  if (NULL == data)
+  {
+    return(-1);
+  }
 
-    data[0] = static_cast<unsigned char>(MB_pole);
-    data[1] = X_H;
-    data[2] = X_L;
-    data[3] = Y_H;
-    data[4] = Y_L;
+  data[0] = static_cast<unsigned char>(MB_pole);
+  data[1] = X_H;
+  data[2] = X_L;
+  data[3] = Y_H;
+  data[4] = Y_L;
 
-    int success;
-    success = put_J_data('X', data, 5, timeout_us, timeout_lim);
+  const int success = put_J_data('X', data, data_num, timeout_us, timeout_lim);
 
-    if (1 == success)
-    {
-      ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f", static_cast<int>(MB_pole), x, y);
-    }
+  if (1 == success)
+  {
+    ROS_INFO("Jdata::MB_pole:%d,x:%f,y:%f", static_cast<int>(MB_pole), x, y);
+  }
 
-    free(data);
-    return success;
+  free(data);
+  return success;
 }
 
-static int uart_output(const float theta, const ros::Time stamp)
+static int uart_output(const double theta, const double line_distance, const ros::Time stamp)
 {
-    int16_t send_theta = static_cast<int>(theta*1000);
-    unsigned char T_L = static_cast<unsigned char>(send_theta);
-    unsigned char T_H = static_cast<unsigned char>((uint16_t)send_theta>>8);
-    /*
-    処理系依存動作
-    */
+  // 木枠検出の際のMBへのデータの送信.
+  const int16_t send_theta = static_cast<int>(theta * 1000);
+  const unsigned char T_L = static_cast<unsigned char>(send_theta);
+  const unsigned char T_H = static_cast<unsigned char>((uint16_t)send_theta>>8);
+  // 姿勢角情報.
+  const int16_t send_line_distance = static_cast<int>(line_distance * 1000);
+  const unsigned char LD_L = static_cast<unsigned char>(send_line_distance);
+  const unsigned char LD_H = static_cast<unsigned char>((uint16_t)send_line_distance>>8);
+  // 木枠との距離.
 
-    unsigned char *data = (unsigned char *)malloc(2);
-    if (NULL == data)
-    {
-      return(-1);
-    }
+  /*
+  処理系依存動作
+  */
 
-    ros::Duration diff = ros::Time::now()-stamp;
+  ros::Duration diff = ros::Time::now() - stamp;
+  if (data_late < diff)
+  {
+    // あまりにも前のデータなら送信しない.
+    ROS_INFO("too late data.");
+    return(0);
+  }
 
-    if (data_late < diff)
-    {
-      ROS_INFO("too late data.");
-      return(0);
-    }
+  const size_t data_num = 4;
+  // 送るデータ数
+  unsigned char *data = (unsigned char *)malloc(data_num);
+  if (NULL == data)
+  {
+    return(-1);
+  }
 
-    data[0] = T_H;
-    data[1] = T_L;
+  data[0] = T_H;
+  data[1] = T_L;
+  data[2] = LD_H;
+  data[3] = LD_L;
 
-    int success;
+  const int success = put_J_data('Y', data, data_num, timeout_us, timeout_lim);
 
-    success = put_J_data('Y', data, 2, timeout_us, timeout_lim);
+  if (1 == success)
+  {
+    ROS_INFO("Jline::theta:%f,line_distance:%f",theta,line_distance);
+  }
 
-    if (1 == success)
-    {
-      ROS_INFO("Jtheta::theta:%f",theta);
-    }
-
-    free(data);
-    return success;
+  free(data);
+  return success;
 }
