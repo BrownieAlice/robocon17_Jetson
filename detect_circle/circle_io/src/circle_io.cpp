@@ -6,7 +6,7 @@
 #include <iostream>
 #include "ros/ros.h"
 #include "detect_circle/MBinput.h"
-#include "detect_circle/Joutput.h"
+#include "detect_circle/Jcircle.h"
 #include "sensor_msgs/LaserScan.h"
 #include "visualization_msgs/Marker.h"
 #include "../include/circle_io_p.hpp"
@@ -58,18 +58,21 @@ namespace
 
     constexpr float rad = 0.28f / 2;
     // ポールの半径.
+
+    constexpr double x_sigma = 0.02, y_sigma = 0.02;
+    // x,yの分散.
   }
 
   namespace var
   {
     ros::Publisher Jdata_pub;
     ros::Publisher marker_pub;
-    detect_circle::Joutput msg;
+    detect_circle::Jcircle msg;
 
-    bool write_position=false;
-    int MB_pole;
+    bool write_position = false;
+    int MB_pole1, MB_pole2;
     char color;
-    float x,y,theta;
+    double x, y, theta, x_sigma, y_sigma, theta_sigma;
     ros::Time stamp;
   }
 
@@ -100,7 +103,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Subscriber sub = n.subscribe("MBdata", 1, Sub_Callback);
   ros::Subscriber laser = n.subscribe("scan_ethLRF",1,Laser_Callback);
-  var::Jdata_pub = n.advertise<detect_circle::Joutput>("Jdata", 1);
+  var::Jdata_pub = n.advertise<detect_circle::Jcircle>("Jdata", 1);
   var::marker_pub = n.advertise<visualization_msgs::Marker>("write_circle", 1);
   ros::Rate loop_rate(10);
 
@@ -155,11 +158,15 @@ static void Sub_Callback(const detect_circle::MBinput& msg)
 {
   // uartにより発行されたトピックの購読
   var::write_position = true;
-  var::MB_pole = (int)msg.MB_pole;
+  var::MB_pole1 = (int)msg.MB_pole1;
+  var::MB_pole2 = (int)msg.MB_pole2;
   var::color = (char)msg.color;
   var::x = msg.x;
   var::y = msg.y;
   var::theta = msg.theta;
+  var::x_sigma = msg.x_sigma;
+  var::y_sigma = msg.y_sigma;
+  var::theta_sigma = msg.theta_sigma;
   var::stamp = msg.stamp;
   // ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f",(int)msg.MB_pole,(char)msg.color,msg.x,msg.y,msg.theta);
 }
@@ -175,7 +182,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   var::write_position = false;
 
-  if (var::MB_pole < 0 || param::pole_num <= var::MB_pole)
+  if (var::MB_pole1 < 0 || param::pole_num <= var::MB_pole1)
   {
     // 本来のポール番号を示していない.
     return;
@@ -245,10 +252,26 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
 
-  var::msg.MB_pole = var::MB_pole;
-  var::msg.x = machine_abs_modify(0);
-  var::msg.y = machine_abs_modify(1);
-  var::msg.stamp = ros::Time::now();
+  int in_sigma = isInSigma(machine_abs_modify(0), machine_abs_modify(1), var::x, var::y, var::x_sigma, var::y_sigma);
 
-  var::Jdata_pub.publish(var::msg);
+  if (0 == in_sigma){
+    var::msg.MB_pole = var::MB_pole1;
+    var::msg.x = machine_abs_modify(0);
+    var::msg.y = machine_abs_modify(1);
+    var::msg.x_sigma = param::x_sigma;
+    var::msg.y_sigma = param::y_sigma;
+    var::msg.stamp = ros::Time::now();
+
+    var::Jdata_pub.publish(var::msg);
+  }
+}
+
+int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma)
+{
+  int success = 0;
+  if (calc_x < x - x_sigma || x + x_sigma < calc_x || calc_y < y - y_sigma || y + y_sigma < calc_y)
+  {
+    success = -1;
+  }
+  return success;
 }

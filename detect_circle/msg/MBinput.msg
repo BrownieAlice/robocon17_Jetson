@@ -1,6 +1,10 @@
-int8 MB_pole
+int8 MB_pole1
+int8 MB_pole2
 int8 color
 float64 x
 float64 y
 float64 theta
+float64 x_sigma
+float64 y_sigma
+float64 theta_sigma
 time stamp

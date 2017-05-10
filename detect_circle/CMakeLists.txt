@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   MBinput.msg
-  Joutput.msg
+  Jcircle.msg
   Jline.msg
 )
 

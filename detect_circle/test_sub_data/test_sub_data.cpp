@@ -14,7 +14,7 @@ Copyright © 2017 Alice.
 
 void SubCallback(const detect_circle::MBinput& msg)
 {
-  ROS_INFO("MBdata::MB_pole:%d,color:%c,x:%f,y:%f,theta:%f", (int)msg.MB_pole, (char)msg.color, msg.x, msg.y, msg.theta);
+  ROS_INFO("MBdata::MB_pole1:%d,MB_pole2:%d,color:%c,x:%f,y:%f,theta:%f,x_sigma:%f,y_sigma:%f,theta_sigma:%f", (int)msg.MB_pole1, (int)msg.MB_pole2, (char)msg.color, msg.x, msg.y, msg.theta, msg.x_sigma, msg.y_sigma, msg.theta_sigma);
 }
 
 int main(int argc, char **argv)

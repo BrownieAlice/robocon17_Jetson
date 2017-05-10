@@ -49,12 +49,11 @@ namespace
     const ros::Duration lifetime(1/static_cast<double>(loop_hz));
     // 許容する遅れ時間.
 
-    constexpr double allow_err = 10.0f / 180 * M_PI;
-    // 許容する与えられた姿勢角と計算した角度のずれ[rad].
-
     constexpr double lrf_diff_x = 0.4425;
     constexpr double lrf_diff_y = 0.4698;
     // LRF座標系での, 中心からみたLRFの位置.
+
+    constexpr double sigma = (double)1.0/3*180/M_PI;
   }
 
   namespace var
@@ -65,7 +64,7 @@ namespace
     // ROSノード用の変数.
 
     bool write_position = false;
-    double theta;
+    double theta, MB_sigma;
     char color;
     ros::Time stamp;
   }
@@ -93,10 +92,11 @@ int main(int argc, char **argv)
 
 static void MB_Callback(const detect_circle::MBinput& msg)
 {
-  // uartにより発行されたトピックの購読
+  // uartにより発行されたトピックの購読.
   var::write_position = true;
   var::theta = msg.theta;
   var::stamp = msg.stamp;
+  var::MB_sigma = msg.theta_sigma;
   var::color = (char)msg.color;
 }
 
@@ -144,7 +144,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
       return;
     }
 
-    if (robot_theta < var::theta - param::allow_err || var::theta + param::allow_err < robot_theta)
+    if (robot_theta < var::theta - var::MB_sigma * 3 || var::theta + var::MB_sigma * 3 < robot_theta)
     {
       // 送られた姿勢角よりあきらかにずれが大きい.
       return;
@@ -154,6 +154,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
     var::msg.theta = robot_theta;
     var::msg.line_distance = line_distance;
+    var::msg.sigma = param::sigma;
     var::msg.stamp = ros::Time::now();
     var::Jline_pub.publish(var::msg);
     // 発行.
