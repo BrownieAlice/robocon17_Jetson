@@ -20,7 +20,7 @@ add_message_files(
   FILES
   MBinput.msg
   Joutput.msg
-  Jtheta.msg
+  Jline.msg
 )
 
 generate_messages(

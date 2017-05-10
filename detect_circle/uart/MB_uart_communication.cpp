@@ -175,7 +175,7 @@ static void subscribe_Jdata(const detect_circle::Joutput& Jdata)
 
 static void subscribe_Jline(const detect_circle::Jline& Jline)
 {
-  int success = uart_output(Jline.theta, Jline.line_distance Jline.stamp);
+  int success = uart_output(Jline.theta, Jline.line_distance, Jline.stamp);
   uart_flag = 1 == success ? true : false;
 }
 

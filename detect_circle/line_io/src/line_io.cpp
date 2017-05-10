@@ -1,4 +1,4 @@
-// #define LINE_IO_DEBUG_MODE
+ #define LINE_IO_DEBUG_MODE
 
 #include <math.h>
 #include <iostream>
@@ -118,12 +118,11 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   }
   #endif
 
-  int success;
   double robot_theta;
   // ロボットの姿勢角.
   double line_distance;
   // 木枠との距離.
-  success = lsd_detect(msg, &robot_theta, &line_distance, -param::lrf_diff_x, -param::lrf_diff_y);
+  int success = lsd_detect(msg, &robot_theta, &line_distance, -param::lrf_diff_x, -param::lrf_diff_y);
 
   ros::Time end = ros::Time::now();
 
@@ -226,7 +225,7 @@ static int lsd_detect(const sensor_msgs::LaserScan& msg, double *robot_theta_ret
   // 何回角度情報があったか.
   double len = 0;
   // 今まで最も長かった線分の長さ.
-  double robot_theta;
+  double robot_theta = 0;
   // 推定したもっともらしい姿勢角情報.
   double line_x0, line_y0, line_x1, line_y1;
   // もっとも長い線分の2点の情報を格納.
@@ -291,7 +290,6 @@ static int lsd_detect(const sensor_msgs::LaserScan& msg, double *robot_theta_ret
 
       *line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / sqrt(len);
       std::cout << "distance to line:" << *line_distance << "[m]" << std::endl;
-
       *robot_theta_return = robot_theta;
       success = 0;
     }

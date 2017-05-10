@@ -11,7 +11,7 @@ Copyright © 2017 Alice.
 
 #include "ros/ros.h"
 #include "detect_circle/Joutput.h"
-#include "detect_circle/Jtheta.h"
+#include "detect_circle/Jline.h"
 
 
 int main(int argc, char **argv)
@@ -19,7 +19,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "test_pub_data");
   ros::NodeHandle n;
   ros::Publisher Jdata_pub = n.advertise<detect_circle::Joutput>("Jdata", 1);
-  ros::Publisher Jtheta_pub = n.advertise<detect_circle::Jtheta>("Jtheta", 1);
+  ros::Publisher Jline_pub = n.advertise<detect_circle::Jline>("Jline", 1);
   ros::Rate loop_rate(5);
 
   while (ros::ok())
@@ -27,7 +27,7 @@ int main(int argc, char **argv)
     static float x = 0, theta = 0;
 
     detect_circle::Joutput msg1;
-    detect_circle::Jtheta msg2;
+    detect_circle::Jline msg2;
 
     ROS_INFO("pub test data");
 
@@ -41,9 +41,9 @@ int main(int argc, char **argv)
 
     msg2.theta = ++theta;
     msg2.stamp = ros::Time::now();
-    ROS_INFO("Jtheta::theta:%f", msg2.theta);
+    ROS_INFO("Jline::theta:%f", msg2.theta);
 
-    Jtheta_pub.publish(msg2);
+    Jline_pub.publish(msg2);
 
 
     ros::spinOnce();
