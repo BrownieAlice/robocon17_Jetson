@@ -204,7 +204,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y);
   // 絶対座標系からLRF座標系への同時変換行列
 
-  const Eigen::Vector4d pole_abs = param::pole[var::MB_pole].getVector();
+  const Eigen::Vector4d pole_abs = param::pole[var::MB_pole1].getVector();
   // ポールの絶対位置
 
   const Eigen::Vector4d pole_rel = AbsToLRF.inverse() * pole_abs;
