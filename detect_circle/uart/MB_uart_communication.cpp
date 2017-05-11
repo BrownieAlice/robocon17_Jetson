@@ -47,9 +47,9 @@ int main(int argc, char **argv)
   ros::Publisher MBdata_pub = n.advertise<detect_circle::MBinput>("MBdata", 1);
   // MBから受け取ったデータをメイン処理プロセスに引き渡す.
   ros::Subscriber Jcircle_sub = n.subscribe("Jcircle", 1, subscribe_Jcircle);
-  // 処理されたデータをMBに引き渡すためにこちらに渡す.
+  // 処理された円検出データをMBに引き渡すためにこちらに渡す.
   ros::Subscriber Jline_sub = n.subscribe("Jline", 1, subscribe_Jline);
-  // 処理された姿勢角データをMBに引き渡すためにこちらに渡す.
+  // 処理された直線検出データをMBに引き渡すためにこちらに渡す.
 
   while (ros::ok())
   {

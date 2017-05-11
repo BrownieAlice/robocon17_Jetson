@@ -24,7 +24,18 @@ int main(int argc, char **argv)
 
   while (ros::ok())
   {
-    static float x = 0, theta = 0;
+    static double x = 0, theta = 0;
+
+    x++;
+    theta++;
+    if (x < 1000)
+    {
+      x = -1000;
+    }
+    if (theta < 1000)
+    {
+      theta = -1000;
+    }
 
     detect_circle::Jcircle msg1;
     detect_circle::Jline msg2;
@@ -32,7 +43,7 @@ int main(int argc, char **argv)
     ROS_INFO("pub test data");
 
     msg1.MB_pole = 1;
-    msg1.x = ++x;
+    msg1.x = x;
     msg1.y = -30;
     msg1.x_sigma = 0.01;
     msg1.y_sigma = 0.01;
@@ -41,14 +52,13 @@ int main(int argc, char **argv)
 
     Jcircle_pub.publish(msg1);
 
-    msg2.theta = ++theta;
+    msg2.theta = theta;
     msg2.line_distance = 1.0;
     msg2.sigma = 0.001;
     msg2.stamp = ros::Time::now();
-    ROS_INFO("Jline::theta:%f", msg2.theta);
+    ROS_INFO("Jline::theta:%f,line_distance:%f,sigma:%f", msg2.theta, msg2.line_distance, msg2.sigma);
 
     Jline_pub.publish(msg2);
-
 
     ros::spinOnce();
 
