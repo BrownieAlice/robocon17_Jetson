@@ -274,7 +274,7 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
   int in_sigma = isInSigma(machine_abs_modify(0), machine_abs_modify(1), var::x, var::y, var::x_sigma, var::y_sigma);
 
   if (0 == in_sigma){
-    var::msg.MB_pole = var::MB_pole1;
+    var::msg.MB_pole = watch_pole_num;
     var::msg.x = machine_abs_modify(0);
     var::msg.y = machine_abs_modify(1);
     var::msg.x_sigma = param::x_sigma;
