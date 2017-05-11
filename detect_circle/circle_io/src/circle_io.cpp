@@ -182,12 +182,6 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   var::write_position = false;
 
-  if (var::MB_pole1 < 0 || param::pole_num <= var::MB_pole1 || var::MB_pole2 < 0 || param::pole_num <= var::MB_pole2)
-  {
-    // 本来のポール番号を示していない.
-    return;
-  }
-
   #ifndef CIRCLE_IO_DEBUG_MODE
 
   const ros::Duration diff = ros::Time::now() - var::stamp;
@@ -200,10 +194,17 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   #endif
 
-  int search_success = SearchPole(msg, var::MB_pole1);
+  int search_success = -1;
+  if (0 <= var::MB_pole1 || var::MB_pole1 < param::pole_num)
+  { 
+    search_success = SearchPole(msg, var::MB_pole1);
+  }
   if (-1 == search_success)
   {
+    if (0 <= var::MB_pole2 || var::MB_pole2 < param::pole_num)
+    {
     SearchPole(msg, var::MB_pole2);
+    }
   }
 }
 
@@ -269,8 +270,6 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
   Eigen::Vector4d machine_abs_modify = AbsToModify * machine_abs;
   // 機体の修正後の自己位置
 
-  std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
-
   int in_sigma = isInSigma(machine_abs_modify(0), machine_abs_modify(1), var::x, var::y, var::x_sigma, var::y_sigma);
 
   if (0 == in_sigma){
@@ -282,7 +281,14 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
     var::msg.stamp = ros::Time::now();
 
     var::Jdata_pub.publish(var::msg);
+
+
+    std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
     return 0;
   }
-  return -1;
+  else
+  {
+    std::cout << "not in sigma" << std::endl;
+    return -1;
+  }
 }
