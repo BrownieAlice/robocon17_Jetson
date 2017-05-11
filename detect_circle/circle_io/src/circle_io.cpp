@@ -182,7 +182,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   var::write_position = false;
 
-  if (var::MB_pole1 < 0 || param::pole_num <= var::MB_pole1)
+  if (var::MB_pole1 < 0 || param::pole_num <= var::MB_pole1 || var::MB_pole2 < 0 || param::pole_num <= var::MB_pole2)
   {
     // 本来のポール番号を示していない.
     return;
@@ -200,11 +200,30 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   #endif
 
+  int search_success = SearchPole(msg, var::MB_pole1);
+  if (-1 == search_success)
+  {
+    SearchPole(msg, var::MB_pole2);
+  }
+}
+
+int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma)
+{
+  int success = 0;
+  if (calc_x < x - x_sigma || x + x_sigma < calc_x || calc_y < y - y_sigma || y + y_sigma < calc_y)
+  {
+    success = -1;
+  }
+  return success;
+}
+
+int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
+{
   Eigen::Matrix4d AbsToLRF;
   calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y);
   // 絶対座標系からLRF座標系への同時変換行列
 
-  const Eigen::Vector4d pole_abs = param::pole[var::MB_pole1].getVector();
+  const Eigen::Vector4d pole_abs = param::pole[watch_pole_num].getVector();
   // ポールの絶対位置
 
   const Eigen::Vector4d pole_rel = AbsToLRF.inverse() * pole_abs;
@@ -228,7 +247,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   if (-1 == calc_success)
   {
     // 計算できなかった時
-    return;
+    return -1;
   }
 
   write_circle(pole_rel_x, pole_rel_y, param::rad, var::marker_pub);
@@ -263,15 +282,7 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
     var::msg.stamp = ros::Time::now();
 
     var::Jdata_pub.publish(var::msg);
+    return 0;
   }
-}
-
-int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma)
-{
-  int success = 0;
-  if (calc_x < x - x_sigma || x + x_sigma < calc_x || calc_y < y - y_sigma || y + y_sigma < calc_y)
-  {
-    success = -1;
-  }
-  return success;
+  return -1;
 }
