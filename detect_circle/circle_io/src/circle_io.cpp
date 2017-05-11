@@ -65,7 +65,7 @@ namespace
 
   namespace var
   {
-    ros::Publisher Jdata_pub;
+    ros::Publisher Jcircle_pub;
     ros::Publisher marker_pub;
     detect_circle::Jcircle msg;
 
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Subscriber sub = n.subscribe("MBdata", 1, Sub_Callback);
   ros::Subscriber laser = n.subscribe("scan_ethLRF",1,Laser_Callback);
-  var::Jdata_pub = n.advertise<detect_circle::Jcircle>("Jdata", 1);
+  var::Jcircle_pub = n.advertise<detect_circle::Jcircle>("Jcircle", 1);
   var::marker_pub = n.advertise<visualization_msgs::Marker>("write_circle", 1);
   ros::Rate loop_rate(10);
 
@@ -203,9 +203,13 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   {
     if (0 <= var::MB_pole2 || var::MB_pole2 < param::pole_num)
     {
-    SearchPole(msg, var::MB_pole2);
+    search_success = SearchPole(msg, var::MB_pole2);
     }
   }
+  if (-1 == search_success)
+  {
+    std::cout << " fail to calc." << std::endl;
+  }  
 }
 
 int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma)
@@ -234,7 +238,7 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
 
   pole_rel_x = pole_rel(0);
   pole_rel_y = pole_rel(1);
-  printf("%f,%f\n", pole_rel_x, pole_rel_y);
+  //printf("%f,%f\n", pole_rel_x, pole_rel_y);
 
   const float pole_dis = sqrt(pole_rel_x * pole_rel_x + pole_rel_y * pole_rel_y);
   // ポールまでの距離.
@@ -280,7 +284,7 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
     var::msg.y_sigma = param::y_sigma;
     var::msg.stamp = ros::Time::now();
 
-    var::Jdata_pub.publish(var::msg);
+    var::Jcircle_pub.publish(var::msg);
 
 
     std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
