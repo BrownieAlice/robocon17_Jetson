@@ -11,6 +11,7 @@ static void calc_matrix(Eigen::Matrix4d *AbsToLRF, const float x, const float y,
 static void Sub_Callback(const detect_circle::MBinput& msg);
 static void Laser_Callback(const sensor_msgs::LaserScan& msg);
 int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma);
+int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num);
 
 #ifndef M_PI
 #define M_PI 3.1415
