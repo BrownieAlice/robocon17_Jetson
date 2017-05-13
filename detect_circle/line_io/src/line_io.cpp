@@ -1,4 +1,4 @@
- #define LINE_IO_DEBUG_MODE
+//  #define LINE_IO_DEBUG_MODE
 
 #include <math.h>
 #include <iostream>
