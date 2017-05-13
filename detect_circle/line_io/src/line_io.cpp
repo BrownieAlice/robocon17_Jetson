@@ -108,6 +108,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan& msg)
   {
     return;
   }
+  var::write_position = false;
 
   #ifndef LINE_IO_DEBUG_MODE
   const ros::Duration diff = ros::Time::now() - var::stamp;
