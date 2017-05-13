@@ -1,5 +1,5 @@
 #define DEIGEN_NO_DEBUG
-// #define CIRCLE_IO_DEBUG_MODE
+#define CIRCLE_IO_DEBUG_MODE
 
 #include <Eigen/Dense>
 #include <math.h>
@@ -59,7 +59,7 @@ namespace
     constexpr float rad = 0.28f / 2;
     // ポールの半径.
 
-    constexpr double x_sigma = 0.02, y_sigma = 0.02;
+    constexpr double x_sigma = 0.01, y_sigma = 0.01;
     // x,yの分散.
   }
 
@@ -76,10 +76,9 @@ namespace
     ros::Time stamp;
   }
 
-  const float rad_err1=0.1,rad_err2=0.05,rad_err3=0.03,allow_err1=0.01,allow_err2=0.005;
-  const int thr2=8;
-  const int warp=32,limit_count=50;
-  float pole_rel_x=0,pole_rel_y=0;
+  const float rad_err1 = 0.08, rad_err2 = 0.04, rad_err3 = 0.01, allow_err1 = 0.01, allow_err2 = 0.005;
+  const int warp = 32, limit_count = 50;
+  float pole_rel_x = 0, pole_rel_y = 0;
   /*
    rad…ポールの半径
    rad_err1…1回目のハフ変換で求めた円の座標からの許容するズレ
@@ -174,6 +173,9 @@ static void Sub_Callback(const detect_circle::MBinput& msg)
 void Laser_Callback(const sensor_msgs::LaserScan& msg)
 {
   // LRFデータの購読.
+
+  ros::Time begin = ros::Time::now();
+
   if (false == var::write_position)
   {
     // なにも書き込まれていない時.
@@ -194,26 +196,25 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
 
   #endif
 
-  int search_success = -1;
-  if (0 <= var::MB_pole1 || var::MB_pole1 < param::pole_num)
-  { 
-    search_success = SearchPole(msg, var::MB_pole1);
-  }
+  int search_success = SearchPole(msg, var::MB_pole1);
+  // 円検出が成功したかどうか.
   if (-1 == search_success)
   {
-    if (0 <= var::MB_pole2 || var::MB_pole2 < param::pole_num)
-    {
+    // 1つ目のポールでの検出に失敗.
     search_success = SearchPole(msg, var::MB_pole2);
-    }
   }
   if (-1 == search_success)
   {
-    std::cout << " fail to calc." << std::endl;
-  }  
+    // ポール検出に失敗.
+  }
+
+  ros::Time end = ros::Time::now();
+  // std::cout <<  "time:" << (end - begin) * 1000 << "[ms]" << std::endl;
 }
 
-int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, double y_sigma)
+static int isInSigma(const double calc_x, const double calc_y, const double x, const double y, const double x_sigma, const double y_sigma)
 {
+  // 3\sigmaの範囲内にあるかどうかを計算. 範囲内なら0,範囲外なら-1.
   int success = 0;
   if (calc_x < x - x_sigma || x + x_sigma < calc_x || calc_y < y - y_sigma || y + y_sigma < calc_y)
   {
@@ -222,8 +223,14 @@ int isInSigma(double calc_x, double calc_y, double x, double y, double x_sigma, 
   return success;
 }
 
-int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
+static int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
 {
+  if (watch_pole_num < 0 || param::pole_num < watch_pole_num )
+  {
+    // ポール番号が不正.
+    return -1;
+  }
+
   Eigen::Matrix4d AbsToLRF;
   calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y);
   // 絶対座標系からLRF座標系への同時変換行列
@@ -236,24 +243,23 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
 
   // printf("x:%f,y:%f\n", pole_rel(0), pole_rel(1));
 
-  pole_rel_x = pole_rel(0);
-  pole_rel_y = pole_rel(1);
-  //printf("%f,%f\n", pole_rel_x, pole_rel_y);
-
-  const float pole_dis = sqrt(pole_rel_x * pole_rel_x + pole_rel_y * pole_rel_y);
+  const float pole_dis = sqrt(pole_rel(0) * pole_rel(0) + pole_rel(1) * pole_rel(1));
   // ポールまでの距離.
 
   param::hough_param.thr = static_cast<int>(6 - param::hough_thr_coe * pole_dis);
 
-  const float thr2 = 16 - pole_dis * 0.8;
+  const float thr2 = calc_thr2(pole_dis);
 
-  const int calc_success = detect_circle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, &param::hough_param, thr2, &pole_rel_x, &pole_rel_y, param::rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, warp, limit_count);
+  boost::optional<position> position_data = detect_circle_cuda(msg.ranges, param::lrf_num, msg.angle_min, msg.angle_increment, &param::hough_param, thr2, pole_rel(0), pole_rel(1), param::rad, rad_err1, rad_err2, rad_err3, allow_err1, allow_err2, warp, limit_count);
 
-  if (-1 == calc_success)
+  if (!position_data)
   {
     // 計算できなかった時
     return -1;
   }
+
+  pole_rel_x = position_data->x;
+  pole_rel_y = position_data->y;
 
   write_circle(pole_rel_x, pole_rel_y, param::rad, var::marker_pub);
 
@@ -274,6 +280,8 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
   Eigen::Vector4d machine_abs_modify = AbsToModify * machine_abs;
   // 機体の修正後の自己位置
 
+  std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
+
   int in_sigma = isInSigma(machine_abs_modify(0), machine_abs_modify(1), var::x, var::y, var::x_sigma, var::y_sigma);
 
   if (0 == in_sigma){
@@ -285,9 +293,6 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
     var::msg.stamp = ros::Time::now();
 
     var::Jcircle_pub.publish(var::msg);
-
-
-    std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
     return 0;
   }
   else
@@ -295,4 +300,10 @@ int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_num)
     std::cout << "not in sigma" << std::endl;
     return -1;
   }
+}
+
+double calc_thr2(double pole_dis)
+{
+  // thr2の値を計算する.
+  return 20 - pole_dis * 0.8;
 }

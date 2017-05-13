@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <vector>
+#include <boost/optional.hpp>
 #include <iostream>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -15,95 +16,7 @@
 #include <thrust/sort.h>
 #include "../include/detect_circle_cuda_p.hpp"
 
-__global__ void cuda_select_data(float *xy_data_d,bool *data_list_d,const int lrf_num,const float p,const float q,const float radius,const float rad_err){
-  const int num = blockIdx.x*blockDim.x+threadIdx.x;
-  if(num<lrf_num){
-   const float laser_x=xy_data_d[2*num],laser_y=xy_data_d[2*num+1];
-   const bool flag=abs(sqrt((laser_x-p)*(laser_x-p)+(laser_y-q)*(laser_y-q))-radius)<rad_err;
-   data_list_d[num]=flag;
- }
- return;
-}
-
-void select_data(float *xy_data,float *xy_data_d, float *select_data,int *select_data_num,const int lrf_num,const float p,const float q,const float radius,const float rad_err,const int warp){
-  bool *data_list,*data_list_d;
-  data_list=(bool*)malloc(lrf_num*sizeof(bool));
-  cudaMalloc((void**)&data_list_d,lrf_num*sizeof(bool));
-  dim3 block_0((int)floor((lrf_num+warp-1)/warp),1,1);
-  dim3 thread_0(warp,1,1);
-  cuda_select_data<<<block_0,thread_0>>>(xy_data_d,data_list_d,lrf_num,p,q,radius,rad_err);
-  cudaMemcpy(data_list,data_list_d,lrf_num*sizeof(bool),cudaMemcpyDeviceToHost);
-  for(int i=0;i<lrf_num;i++){
-   if(data_list[i]){
-     int my_head = (*select_data_num)++;
-     select_data[my_head*2]=xy_data[2*i];
-     select_data[my_head*2+1]=xy_data[2*i+1];
-     //printf("selectdata:%d\n",select_data_num_d[0]);
-   }
- }
-}
-
-void calc_mle(float *select_datas,int select_data_num,const float rad,float *x_esti,float *y_esti,const float allow_err,const int limit_count,float *j_ml){
-  float err=0,x_posi[2],y_posi[2],dif;
-  x_posi[0]=*x_esti;
-  y_posi[0]=*y_esti;
-  int count=0;
-  do{
-    //printf("num:%d\n",select_data_num);
-    float j_a=0,j_b=0;
-    *j_ml=0;
-    for(int i=0;i<select_data_num;i++){
-      const float x_a=select_datas[2*i],y_a=select_datas[2*i+1];
-      const float val=x_a*x_a+y_a*y_a-2*(*x_esti)*x_a-2*(*y_esti)*y_a+(*x_esti)*(*x_esti)+(*y_esti)*(*y_esti);
-      *j_ml+=(val-rad*rad)*(val-rad*rad)/val;
-      j_a+=(2*(val-rad*rad)*(2*(*x_esti)-2*x_a)-(val-rad*rad)*(val-rad*rad)*(2*(*x_esti)-2*x_a))/(val*val);
-      j_b+=(2*(val-rad*rad)*(2*(*y_esti)-2*y_a)-(val-rad*rad)*(val-rad*rad)*(2*(*y_esti)-2*y_a))/(val*val);
-    }
-    err=j_a*j_a+j_b*j_b;
-    if(err>allow_err){
-      j_a=j_a/sqrt(err)*allow_err;
-      j_b=j_b/sqrt(err)*allow_err;
-    }
-    x_posi[1]=x_posi[0];
-    y_posi[1]=y_posi[0];
-    x_posi[0]=*x_esti;
-    y_posi[0]=*y_esti;
-    *x_esti-=j_a;
-    *y_esti-=j_b;
-    //printf("mle x:%f,y:%f,j_a:%f,j_b:%f\n",*x_esti,*y_esti,j_a,j_b);
-    dif=(x_posi[1]-*x_esti)*(x_posi[1]-*x_esti)+(y_posi[1]-*y_esti)*(y_posi[1]-*y_esti);
-  }while(allow_err*allow_err<err&&count++<limit_count&&!(dif<allow_err*allow_err&&count>1));
-}
-
-void mle(float *select_datas,int select_data_num,const float rad,float *x_esti,float *y_esti,const float allow_err,const int limit_count){
-  //最尤推定法を実行
-  /*
-    select_datas…点列情報
-    select_data_num…点列の個数
-    rad…円の半径
-    x_esti/y_esti…求めた座標を格納する先
-    allow_err…許容誤差
-   */
-
-  float j_ml;
-  calc_mle(select_datas,select_data_num,rad,x_esti,y_esti,allow_err,limit_count,&j_ml);
-  float len=sqrt((*x_esti)*(*x_esti)+(*y_esti)*(*y_esti));
-  float pro_x=(*x_esti)+(*x_esti)/len*rad,pro_y=(*y_esti)+(*y_esti)/len*rad;
-
-  float j_ml2=0;
-  for(int i=0;i<select_data_num;i++){
-    const float x_a=select_datas[2*i],y_a=select_datas[2*i+1];
-    const float val=x_a*x_a+y_a*y_a-2*(*x_esti)*x_a-2*(*y_esti)*y_a+(*x_esti)*(*x_esti)+(*y_esti)*(*y_esti);
-    j_ml2+=(val-rad*rad)*(val-rad*rad)/val;
-  }
-  if(j_ml>j_ml2){
-   *x_esti=pro_x;
-   *y_esti=pro_y;
-   calc_mle(select_datas,select_data_num,rad,x_esti,y_esti,allow_err,limit_count,&j_ml);
-  }
-}
-
-int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num, const float angle_min, const float angle_increment, const hough_param_str *hough_param, const int thr2, float *p, float *q, const float rad, const float rad_err1, const float rad_err2, const float rad_err3, const float allow_err1, const float allow_err2, const int warp, const int limit_count){
+boost::optional<position> detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num, const float angle_min, const float angle_increment, const hough_param_str *hough_param, const int thr2, const float p, const float q, const float rad, const float rad_err1, const float rad_err2, const float rad_err3, const float allow_err1, const float allow_err2, const int warp, const int limit_count){
   /*
     struct timeval start,end;
     時間計測用
@@ -127,12 +40,12 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
     cudaEventDestory(end);
   */
 
-  int calc_flag = -1;
+  boost::optional<position> position_data;
 
   if (lrf_num > 1024)
   {
     std::cout << "too many number to see." << std::endl;
-    return calc_flag;
+    return position_data;
   }
   //gpuの可能並列化数を超えていたらreturn
 
@@ -141,7 +54,7 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
   {
     // LRFの距離データの数が少なすぎた時.
     std::cout << "few number of lrf data." << std::endl;
-    return calc_flag;
+    return position_data;
   }
 
   thrust::device_vector<float> device_ranges(host_ranges.size());
@@ -162,16 +75,12 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
 
   make_xy_data<<<block_0,thread_0>>>(
     (float *)thrust::raw_pointer_cast(device_ranges.data()),
-    (float *) thrust::raw_pointer_cast(device_xy_data.data()),
+    (float *)thrust::raw_pointer_cast(device_xy_data.data()),
     lrf_offset, lrf_num, angle_min, angle_increment);
   // x-yデータを作成.
 
   thrust::copy(device_xy_data.begin(), device_xy_data.end(), host_xy_data.begin());
   // ホストにx-yデータをコピー.
-
-  float *xy_data, *xy_data_d;
-  xy_data = (float *) thrust::raw_pointer_cast(host_xy_data.data());
-  xy_data_d = (float *) thrust::raw_pointer_cast(device_xy_data.data());
 
   const float x_range = hough_param->x_num / 2 * hough_param->x_wid;
   const float y_range = hough_param->y_num / 2 * hough_param->y_wid;
@@ -186,7 +95,7 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
 
   make_hough_graph<<<blocks_1,threads_1>>>((float *)thrust::raw_pointer_cast(device_xy_data.data()),
   (int *)thrust::raw_pointer_cast(device_hough_list.data()),
-  *p, *q,
+  p, q,
   hough_param->x_num, hough_param->y_num,
   hough_param->x_wid, hough_param->y_wid,
   x_range, y_range, rad);
@@ -228,7 +137,7 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
 
   float x_esti, y_esti;
   if(host_head[0] != 0){
-    const float x_b = *p, y_b = *q;
+    const float x_b = p, y_b = q;
     // x-yの中心位置(オフセット).
     x_esti = (float)(host_circle[0] - hough_param->x_num / 2) * hough_param->x_wid + x_b;
     y_esti = (float)(host_circle[1] - hough_param->y_num / 2) * hough_param->y_wid + y_b;
@@ -256,48 +165,58 @@ int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num,
     printf("%d\n",host_head[0]);
     *p = x_esti;
     *q = y_esti;
-    calc_flag = 0;
-    return calc_flag;
+    return position_data;
   }
   */
 
   if (host_head[0] != 0){
-    //ここから2回目の処理
-    float *select_datas;
-    select_datas=(float*)malloc(lrf_num*2*sizeof(float));
-    //選別したlrfのデータを保管
+    // ここから2回目の処理.
+    std::vector<float> select_datas;
+    // 選別したlrfのデータを保管.
+    boost::optional<position> calc_position;
+    // 計算した位置の格納.
 
-    int select_data_num=0;
-
-    select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err1,warp);
+    select_data(host_xy_data, device_xy_data, &select_datas, lrf_num, x_esti, y_esti, rad, rad_err1, warp);
     //lrfデータを選別
 
-    //printf("select:%d\n",select_data_num);
-    mle(select_datas,select_data_num,rad,&x_esti,&y_esti,allow_err1,limit_count);
+    calc_position = mle(select_datas, rad, x_esti, y_esti, allow_err1, limit_count);
     //最尤推定を実行
-    select_data_num=0;
-    select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err2,warp);
-
-    //lrfデータを選別
-    mle(select_datas,select_data_num,rad,&x_esti,&y_esti,allow_err2,limit_count);
-    //二回目の最尤推定を実行
-
-    select_data_num=0;
-    select_data(xy_data,xy_data_d,select_datas,&select_data_num,lrf_num,x_esti,y_esti,rad,rad_err3,warp);
-    //printf("select:%d\n",select_data_num);
-     if(select_data_num>thr2){
-      *p = x_esti;
-      *q = y_esti;
-      calc_flag = 0;
-      // printf("p=%f\nq=%f\n",*p,*q);
-     }
-    free(select_datas);
+    if(calc_position)
+    {
+      x_esti = calc_position->x;
+      y_esti = calc_position->y;
+    }
+    else
+    {
+      return position_data;
     }
 
-  //printf("time:%f[ms]\n", (float)(end - start)/CLOCKS_PER_SEC*1000);
-  //printf("\n");
-  return calc_flag;
+    select_data(host_xy_data, device_xy_data, &select_datas, lrf_num, x_esti, y_esti, rad, rad_err2, warp);
+    //lrfデータを選別
 
+    calc_position = mle(select_datas, rad, x_esti, y_esti, allow_err2, limit_count);
+    //二回目の最尤推定を実行
+    if(calc_position)
+    {
+      x_esti = calc_position->x;
+      y_esti = calc_position->y;
+    }
+    else
+    {
+      return position_data;
+    }
+
+    select_data(host_xy_data, device_xy_data, &select_datas, lrf_num, x_esti, y_esti, rad, rad_err3, warp);
+    //printf("select:%d\n",select_data_num);
+
+    if(select_datas.size() > (size_t)thr2)
+    {
+      position tmp_position = {x_esti, y_esti};
+      position_data = tmp_position;
+    }
+  }
+
+  return position_data;
 }
 
 __global__ void make_xy_data(const float *device_ranges, float *device_xy_data, const int lrf_offset, const int lrf_num, const float angle_min, const float angle_increment)
@@ -407,7 +326,7 @@ static void print_hough_gragh(thrust::device_vector<int> &device_hough_list, int
   }
 }
 
-__global__ void find_circle(int *device_hough_list, float *device_circle, int *device_head, const int near_x,const int near_y,const int x_num,const int y_num, const int thr, const float weight){
+__global__ void find_circle(int *device_hough_list, float *device_circle, int *device_head, const int near_x, const int near_y,const int x_num,const int y_num, const int thr, const float weight){
   // ハフ変換のデータから円を検出する.
 
   const int i = blockIdx.x, j = threadIdx.x;
@@ -464,4 +383,197 @@ __global__ void find_circle(int *device_hough_list, float *device_circle, int *d
   }
   // flag==trueなら書き込み.
 
+}
+
+__global__ void cuda_select_data(const float *device_xy_data, bool *device_IsOnCircleBound, const int lrf_num, const float p, const float q, const float radius, const float rad_err)
+{
+  // 点が中心(p,q)半径radiusの円から半径誤差rad_err内にあるかどうかを計算する.
+  const int num = blockIdx.x * blockDim.x + threadIdx.x;
+  if (num < lrf_num)
+  {
+   const float laser_x = device_xy_data[2 * num], laser_y = device_xy_data[2 * num + 1];
+   const bool flag = abs(sqrt((laser_x - p) * (laser_x - p) + (laser_y - q) * (laser_y - q)) - radius) < rad_err;
+   device_IsOnCircleBound[num] = flag;
+ }
+ return;
+}
+
+void select_data(const thrust::host_vector<float>& host_xy_data, const thrust::device_vector<float>& device_xy_data, std::vector<float> *select_datas, const int lrf_num, const float p, const float q, const float radius, const float rad_err, const int warp)
+{
+  // 中心(p,q)半径radiusの円の半径誤差rad_err内に点が存在するかどうかを計算する. 存在した場合の天データをselect_dataに,その個数をselect_data_numに格納する.
+
+  select_datas->clear();
+
+  thrust::device_vector<bool> device_IsOnCircleBound(lrf_num);
+  // デバイス用の円上かのデータ格納用のvector.
+  thrust::host_vector<bool> host_IsOnCircleBound(lrf_num);
+  // ホスト用の円上かのデータ格納用のvector.
+
+  dim3 block_0((int)floor((lrf_num + warp - 1) / warp), 1, 1);
+  dim3 thread_0(warp, 1, 1);
+
+  cuda_select_data<<<block_0,thread_0>>>(
+    (float*)thrust::raw_pointer_cast(device_xy_data.data()),
+    (bool*)thrust::raw_pointer_cast(device_IsOnCircleBound.data()),
+    lrf_num, p, q, radius, rad_err);
+  // 円上にあるかどうかを計算.
+
+  thrust::copy(device_IsOnCircleBound.begin(), device_IsOnCircleBound.end(), host_IsOnCircleBound.begin());
+  // ホストにデータをコピー.
+
+  for (int i = 0; i < lrf_num; i++){
+    if (host_IsOnCircleBound[i]){
+      select_datas->push_back(host_xy_data[2 * i]);
+      select_datas->push_back(host_xy_data[2 * i + 1]);
+    }
+  }
+}
+
+double eva_deno(const double x_a, const double y_a, const double a, const double b)
+{
+  // 1点に関する評価関数の分母を求める.
+  return x_a * x_a + y_a * y_a - 2 * a * x_a - 2 * b * y_a + a * a + b * b;
+}
+
+double eva_val(const double deno, const double rad)
+{
+  // 1点に関する評価関数の値を求める.
+  return (deno - rad * rad) * (deno - rad * rad) / deno;
+}
+
+double eva_d(const double deno, const double rad, const double x_ab, const double ab)
+{
+  // 1点に関する評価関数のa,bの偏微分地を求める.
+  return (2 * (deno - rad * rad ) * (2 * ab - 2 * x_ab) - (deno - rad * rad) * (deno - rad * rad) * (2 * ab - 2 * x_ab)) / (deno * deno);
+}
+
+boost::optional<mle_data> calc_mle(const std::vector<float>& select_datas, const float rad, float x, float y, const float allow_err, const int limit_count)
+{
+  boost::optional<mle_data> data;
+  // 最尤推定のデータ型.
+  int count = 0;
+  // ニュートン法を行った回数.
+  double sq_j;
+  // 誤差値の二乗.
+
+  do{
+    double j_a = 0, j_b = 0, j_ml = 0;
+    // a,bdでの偏微分値と評価関数.
+    const int select_data_num = static_cast<int>(select_datas.size()) / 2;
+    // 点列の数.
+
+    for(int i = 0; i < select_data_num; i++){
+      const double x_a = select_datas[2 * i], y_a = select_datas[2 * i + 1];
+      const double deno = eva_deno(x_a, y_a, x, y);
+      j_ml += eva_val(deno, rad) / select_data_num;
+      j_a += eva_d(deno, rad, x_a, x) / select_data_num;
+      j_b += eva_d(deno, rad, y_a, y) / select_data_num;
+    }
+    // 評価関数の値と偏微分値の計算.
+
+    sq_j = j_a * j_a + j_b * j_b;
+    if (sq_j > allow_err * allow_err){
+      j_a = j_a / sqrt(sq_j) * allow_err;
+      j_b = j_b / sqrt(sq_j) * allow_err;
+    }
+    // 移動距離を算出.
+
+    if(data)
+    {
+      // 最尤推定のデータ型に書き込みがあった.
+      if(data->j_ml < j_ml)
+      {
+        // 前の評価関数値が今の計算値より低かった.
+        return data;
+      }
+    }
+
+    const mle_data tmp_mle_data = {x, y, j_ml};
+    data = tmp_mle_data;
+    // 値の退避.
+
+    x -= j_a;
+    y -= j_b;
+  } while (allow_err * allow_err < sq_j && count++ < limit_count);
+
+  return data;
+}
+
+boost::optional<position> mle(const std::vector<float>& select_datas, const float rad, const float x, const float y, const float allow_err, const int limit_count)
+{
+  //最尤推定法を実行
+  /*
+    select_datas…点列情報
+    rad…円の半径
+    x_esti/y_esti…求めた座標を格納する先
+    allow_err…許容誤差
+  */
+
+  boost::optional<position> position_data;
+
+  boost::optional<mle_data> data = calc_mle(select_datas, rad, x, y, allow_err, limit_count);
+  // 最尤推定により計算.
+  if(!data)
+  {
+    // 計算できず.
+    return position_data;
+  }
+
+  /*
+  const double len = sqrt(x * x + y * y);
+  // 円までの長さ.
+  const double pro_x = x + x / len * rad, pro_y  = y + y / len * rad;
+  // 今回の円検出特有の円の手前の谷にハマる現象対策.
+
+  double j_ml = 0;
+  const int select_data_num = static_cast<int>(select_datas.size()) / 2;
+  for (int i = 0; i < select_data_num; i++){
+    const double x_a = select_datas[2 * i], y_a = select_datas[2 * i + 1];
+    const double deno = eva_deno(x_a, y_a, pro_x, pro_y) / select_data_num;
+    j_ml += eva_val(deno, rad) / select_data_num;
+  }
+  if (data->j_ml > j_ml){
+   data = calc_mle(select_datas, rad, pro_x, pro_y, allow_err, limit_count);
+   // 最尤推定により計算.
+
+   if(!data)
+   {
+     // 計算できず.
+     return position_data;
+   }
+  }
+  */
+  const int select_data_num = static_cast<int>(select_datas.size()) / 2;
+  for (int i = 0; i < 100; i++)
+  {
+    const double random_x = x + random_val(0.3), random_y = y + random_val(0.3);
+    double j_ml = 0;
+    for (int j = 0; j < select_data_num; j++){
+      const double x_a = select_datas[2 * j], y_a = select_datas[2 * j + 1];
+      const double deno = eva_deno(x_a, y_a, random_x, random_y) / select_data_num;
+      j_ml += eva_val(deno, rad) / select_data_num;
+    }
+    //printf("j_ml:%f\n",j_ml);
+    //printf("dj_ml:%f\n",data->j_ml);
+    if (data->j_ml > j_ml){
+      data = calc_mle(select_datas, rad, random_x, random_y, allow_err, limit_count);
+      // 最尤推定により計算.
+      //printf("iizo\n");
+      if(!data)
+      {
+        // 計算できず.
+        return position_data;
+      }
+    }
+  }
+
+  const position tmp_position = {data->x, data->y};
+  position_data = tmp_position;
+  // データの移動
+
+  return position_data;
+}
+
+double random_val(double wid){
+    return ((double)rand() + 1.0) / ((double)RAND_MAX + 2.0) * 2 * wid - wid;
 }

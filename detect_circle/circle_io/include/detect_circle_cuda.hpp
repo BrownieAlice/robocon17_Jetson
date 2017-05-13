@@ -1,7 +1,8 @@
 #ifndef INCLUDED_DETECT_CIRCLE_CUDA
 #define INCLUDED_DETECT_CIRCLE_CUDA
+#include <boost/optional.hpp>
 
- struct hough_param_str_def {
+struct hough_param_str_def {
   float x_wid; // ハフ変換する際のxの間隔.
   float y_wid; // ハフ変換する際のyの間隔.
   int x_num;    // ハフ変換する際のxの個数.
@@ -13,6 +14,13 @@
 } ;
 typedef struct hough_param_str_def hough_param_str;
 
-int detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num, const float angle_min, const float angle_increment, const hough_param_str *hough_param, const int thr2, float *p, float *q, const float rad, const float rad_err1, const float rad_err2, const float rad_err3, const float allow_err1, const float allow_err2, const int warp, const int limit_count);
+struct position_str
+{
+  double x;
+  double y;
+};
+typedef position_str position;
+
+boost::optional<position> detect_circle_cuda(const std::vector<float>& host_ranges, const int lrf_num, const float angle_min, const float angle_increment, const hough_param_str *hough_param, const int thr2, const float p, const float q, const float rad, const float rad_err1, const float rad_err2, const float rad_err3, const float allow_err1, const float allow_err2, const int warp, const int limit_count);
 
 #endif
