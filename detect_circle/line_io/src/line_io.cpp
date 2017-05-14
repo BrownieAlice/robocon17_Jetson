@@ -53,7 +53,9 @@ namespace
     constexpr double lrf_diff_y = 0.4698;
     // LRF座標系での, 中心からみたLRFの位置.
 
-    constexpr double sigma = (double)1.0/3*180/M_PI;
+    constexpr double sigma = (double)1.0 / 3 / 180 * M_PI;
+
+    constexpr double offset = (double)1.2 / 180 * M_PI;
   }
 
   namespace var
@@ -266,7 +268,7 @@ static int lsd_detect(const sensor_msgs::LaserScan& msg, double *robot_theta_ret
     {
       // もっとも長い線分ならロボットの姿勢角情報とみなす.
       len = this_len;
-      robot_theta = -theta;
+      robot_theta = -theta + param::offset;
       theta_count++;
       line_x0 = x0;
       line_y0 = y0;

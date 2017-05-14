@@ -61,6 +61,8 @@ namespace
 
     constexpr double x_sigma = 0.01, y_sigma = 0.01;
     // x,yの分散.
+
+    constexpr double pole_x_sigma = 0.02, pole_y_sigma = 0.02;
   }
 
   namespace var
@@ -212,11 +214,14 @@ void Laser_Callback(const sensor_msgs::LaserScan& msg)
   // std::cout <<  "time:" << (end - begin) * 1000 << "[ms]" << std::endl;
 }
 
-static int isInSigma(const double calc_x, const double calc_y, const double x, const double y, const double x_sigma, const double y_sigma)
+static int isInSigma(const double calc_x, const double calc_y, const double x, const double y, const double posi_x_sigma, const double posi_y_sigma)
 {
   // 3\sigmaの範囲内にあるかどうかを計算. 範囲内なら0,範囲外なら-1.
   int success = 0;
-  if (calc_x < x - x_sigma || x + x_sigma < calc_x || calc_y < y - y_sigma || y + y_sigma < calc_y)
+
+  const double x_sigma = sqrt(posi_x_sigma * posi_x_sigma + param::pole_x_sigma * param::pole_x_sigma), y_sigma = sqrt(posi_y_sigma * posi_y_sigma + param::pole_y_sigma * param::pole_y_sigma);
+
+  if (calc_x < x - 3 * x_sigma || x + 3 * x_sigma < calc_x || calc_y < y - 3 *  y_sigma || y + 3 * y_sigma < calc_y)
   {
     success = -1;
   }

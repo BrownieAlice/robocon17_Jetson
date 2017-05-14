@@ -546,7 +546,7 @@ boost::optional<position> mle(const std::vector<float>& select_datas, const floa
   const int select_data_num = static_cast<int>(select_datas.size()) / 2;
   for (int i = 0; i < 100; i++)
   {
-    const double random_x = x + random_val(0.3), random_y = y + random_val(0.3);
+    const double random_x = x + random_val(0.15), random_y = y + random_val(0.15);
     double j_ml = 0;
     for (int j = 0; j < select_data_num; j++){
       const double x_a = select_datas[2 * j], y_a = select_datas[2 * j + 1];
