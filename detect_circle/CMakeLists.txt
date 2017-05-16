@@ -8,6 +8,7 @@ option(
   ON
 )
 # cudaを持ちるか否か.
+set(USE_CUDA_PROGRAM ON)
 
 option(
   MAKE_ONLY_MSG
@@ -15,6 +16,7 @@ option(
   OFF
 )
 # msgファイルをincludeファイルに変換させるだけをやらせるか否か.
+set(MAKE_ONLY_MSG OFF)
 
 option(
   ROS_DEBUG_MODE
@@ -22,6 +24,7 @@ option(
   OFF
 )
 # デバックモードを使用する.
+set(ROS_DEBUG_MODE OFF)
 
 message(STATUS "USE_CUDA_PROGRAM ${USE_CUDA_PROGRAM}")
 message(STATUS "MAKE_ONLY_MSG ${MAKE_ONLY_MSG}")
