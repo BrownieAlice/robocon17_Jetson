@@ -1,6 +1,7 @@
 #include <math.h>
 #include <iostream>
 #include <boost/optional.hpp>
+#include <boost/format.hpp>
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
 #include "detect_circle/Jline.h"
@@ -141,7 +142,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan &msg)
   publish_line_detect(line_detect_data, param::sigma, &var::msg, var::Jline_pub);
   // 発行.
 
-  std::cout <<  "time:" << (end - begin) * 1000 << "[ms]" << std::endl;
+  std::cout << boost::format("time:%5.2f[ms]") %  ((end - begin).toSec() * 1000) << std::endl;
 
   var::MB_info_datas = boost::none;
   return;
@@ -209,7 +210,7 @@ static void convert_position_data(const sensor_msgs::LaserScan& msg, image_doubl
     const int width = static_cast<int>((y - LRF_image_data.y_min) / LRF_image_data.y_wid);
     // 離散化したときのheight,widthの値.
 
-    if (LRF_image_data.height <= height || LRF_image_data.width < width || height < 0 || width < 0)
+    if (LRF_image_data.height <= height || LRF_image_data.width <= width || height < 0 || width < 0)
     {
       continue;
       // 配列外参照.
@@ -240,17 +241,11 @@ static boost::optional<line_position> search_lonngest_line(const ntuple_list lin
     write_line(x0, y0, x1, y1, i, marker_pub, lifetime);
     // rviz上に線分を表示.
 
-    std::cout << "x0:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << x0 << "[m]" << ", ";
-    std::cout << "y0:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << y0 << "[m]" << ", ";
-    std::cout << "x1:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << x1 << "[m]" << ", ";
-    std::cout << "y1:" << std::fixed << std::setprecision(3) << std::setfill(' ') << std::setw(6) << std::right << y1 << "[m]" << ", ";
-    // 線分情報を標準入出力に出力.
-
     const double len = sqrt( (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) );
     // この線分の長さ.
 
-    std::cout << "len:" << len << "[m]" << std::endl;
-    // 長さを標準入出力に出力.
+    std::cout << boost::format("x0:%6.3f[m], y0:%6.3f[m], x1:%6.3f[m], y1:%6.3f[m], len:%5.4f[m]") % x0 % y0 % x1 % y1 % len << std::endl;
+    // 線分情報を標準入出力に出力.
 
     if ( !line_position_data || line_position_data->length < len )
     {
@@ -290,8 +285,7 @@ static boost::optional<line_detect> convert_line_data(const boost::optional<line
         theta -= M_PI;
       }
       // 角度を -PI/2以上PI/2以下にする.
-
-      std::cout << "theta:" << std::fixed << std::setprecision(1) << std::setfill(' ') << std::setw(5) << std::right << theta * 180 / M_PI << "[deg]" << std::endl;
+      std::cout << boost::format("theta:%+5.2f") % (theta * 180 / M_PI) << "[deg]" << std::endl;
       // 標準入出力に出力.
 
       const double rel_line_x0 = line_position_data->x0 - origin_x;
@@ -303,7 +297,7 @@ static boost::optional<line_detect> convert_line_data(const boost::optional<line
       const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / sqrt(line_position_data->length);
       // ロボット中心から直線までの距離.
 
-      std::cout << "distance to line:" << line_distance << "[m]" << std::endl;
+      std::cout << boost::format("distance to line:%3.1f[m]") % line_distance << std::endl;
       // 標準入出力に出力.
 
       line_detect tmp_data = {theta, line_distance};
@@ -373,6 +367,11 @@ static void publish_line_detect(const boost::optional<line_detect> &line_detect_
     msg->stamp = ros::Time::now();
     Jline_pub.publish(*msg);
 
-    std::cout << "robot_theta:" << std::fixed << std::setprecision(1) << std::setfill(' ') << std::setw(4) << std::right << line_detect_data->theta * 180 / M_PI << "[deg]" << std::endl;
+    std::cout << boost::format("robot theta:%+4.1f[deg]") % (line_detect_data->theta * 180 / M_PI) << std::endl;
+    std::cout << boost::format("\x1b[36m" "success to detect line." "\x1b[39m") << std::endl;
+  }
+  else
+  {
+    std::cout << boost::format("\x1b[31m" "fail to detect line." "\x1b[39m") << std::endl;
   }
 }
