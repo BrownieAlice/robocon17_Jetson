@@ -1,5 +1,4 @@
 #define DEIGEN_NO_DEBUG
-// #define CIRCLE_IO_DEBUG_MODE
 
 #include <Eigen/Dense>
 #include <math.h>

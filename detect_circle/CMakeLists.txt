@@ -2,7 +2,34 @@ cmake_minimum_required(VERSION 2.8.3)
 
 project(detect_circle)
 
-find_package(CUDA REQUIRED)
+option(
+  USE_CUDA_PROGRAM
+  "Use cuda toolkit."
+  ON
+)
+# cudaを持ちるか否か.
+
+option(
+  MAKE_ONLY_MSG
+  "Make only msg."
+  OFF
+)
+# msgファイルをincludeファイルに変換させるだけをやらせるか否か.
+
+option(
+  ROS_DEBUG_MODE
+  "Debug mode."
+  OFF
+)
+# デバックモードを使用する.
+
+message(STATUS "USE_CUDA_PROGRAM ${USE_CUDA_PROGRAM}")
+message(STATUS "MAKE_ONLY_MSG ${MAKE_ONLY_MSG}")
+message(STATUS "ROS_DEBUG_MODE ${ROS_DEBUG_MODE}")
+
+if(USE_CUDA_PROGRAM)
+  find_package(CUDA REQUIRED)
+endif(USE_CUDA_PROGRAM)
 find_package(GLUT)
 find_package(OpenGL)
 find_package(OpenCV REQUIRED)
@@ -30,10 +57,12 @@ generate_messages(
 
 roslint_cpp()
 
-set(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
-set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
+if(USE_CUDA_PROGRAM)
+  set(CUDA_NVCC_FLAGS "-arch=sm_32" CACHE STRING "nvcc flags" FORCE)
+  set(CUDA_VERBOSE_BUILD ON CACHE BOOL "nvcc verbose" FORCE)
+  set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+endif(USE_CUDA_PROGRAM)
 set(LIB_TYPE STATIC)
-set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(CMAKE_C_FLAGS "-Wall -O2 -march=native")
 set(CMAKE_CXX_FLAGS "-D_FORCE_INLINES -Wall -O2 -march=native -std=c++11")
 
@@ -44,16 +73,25 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_subdirectory(uart)
+if(ROS_DEBUG_MODE)
+  add_definitions(-DLINE_IO_DEBUG_MODE -DCIRCLE_IO_DEBUG_MODE)
+endif(ROS_DEBUG_MODE)
 
-add_subdirectory(test_pub_data)
 
-add_subdirectory(test_sub_data)
+if(NOT MAKE_ONLY_MSG)
+  add_subdirectory(uart)
 
-add_subdirectory(circle_io)
+  add_subdirectory(test_pub_data)
 
-add_subdirectory(disp_posi)
+  add_subdirectory(test_sub_data)
 
-add_subdirectory(urg_connection)
+  if(USE_CUDA_PROGRAM)
+    add_subdirectory(circle_io)
+  endif(USE_CUDA_PROGRAM)
 
-add_subdirectory(line_io)
+  add_subdirectory(disp_posi)
+
+  add_subdirectory(urg_connection)
+
+  add_subdirectory(line_io)
+endif(NOT MAKE_ONLY_MSG)
