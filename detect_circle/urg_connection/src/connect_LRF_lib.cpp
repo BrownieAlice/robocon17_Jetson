@@ -13,6 +13,7 @@ Copyright © 2017 Alice.
 #include <cerrno>
 #include <cstring>
 #include <vector>
+#include <boost/format.hpp>
 #include "../lib/urg_utils.h"
 #include "../lib/urg_sensor.h"
 #include "ros/ros.h"
@@ -58,10 +59,8 @@ int main(int argc, char **argv)
     if (length_data_size < 0)
     {
       // エラーでLRFのデータを入手できなかった時.
-      ROS_INFO("urg error:%s", urg_error(&urg));
-      ROS_INFO("fail to get LRF data.");
+      std::cout << boost::format("\x1b[31m" "urg error:%s\n" "fail to get LRF data.\n" "close LRF connection" "\x1b[39m") % urg_error(&urg) << std::endl;
       urg_close(&urg);
-      ROS_INFO("close LRF connection.");
       //LRFと切断.
 
       loop_to_connect_LRF(&urg, param::connection_type, param::connect_address_device, param::connect_port_baudrate, param::LRF_recconect_hz, param::timeout_ms);
@@ -84,7 +83,7 @@ int main(int argc, char **argv)
     }
     else if (length_data_size == 0)
     {
-      ROS_INFO("got no data.");
+      std::cout << boost::format("got no data.") << std::endl;
     }
     else
     {
@@ -108,11 +107,11 @@ int main(int argc, char **argv)
   // メモリ解放
 
   urg_stop_measurement(&urg);
-  ROS_INFO("stop LRF measure.");
+  std::cout << boost::format("stop LRF measure.") << std::endl;
   // LRFを停止.
 
   urg_close(&urg);
-  ROS_INFO("close LRF connection.");
+  std::cout << boost::format("close LRF connection.") << std::endl;
   //LRFと切断.
 
   return 0;
@@ -136,17 +135,17 @@ static void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_
     if (0 == err_val)
     {
       // 正常に接続.
-      ROS_INFO("success to conect LRF.");
+      std::cout << boost::format("\x1b[36m" "success to connect LRF." "\x1b[39m") << std::endl;
       break;
     }
     else
     {
       // 接続できず.
-      ROS_INFO("error:[%s]%s",connect_address_device,strerror(errno));
-      ROS_INFO("urg error:%s", urg_error(urg_p));
-      ROS_INFO("fail to conect LRF. try to recconect.");
+      std::cout << boost::format("\x1b[31m" "error:[%s]%s\n" "urg error:%s\n" "fail to conect LRF. try to recconect." "\x1b[39m") % connect_address_device % strerror(errno) % urg_error(urg_p) << std::endl;
 
-      std::system("dmesg | grep URG");
+      std::cout << boost::format("\x1b[31m");
+      std::system("dmesg | grep URG　> /dev/null");
+      std::cout << boost::format("\x1b[39m");
       // おまじない.
     }
 
@@ -169,16 +168,13 @@ static void loop_to_connect_LRF(urg_t *urg_p,  urg_connection_type_t connection_
   if (0 == err_val)
   {
     // 正常に計測開始
-    ROS_INFO("success to start measure.");
+    std::cout << boost::format("\x1b[36m" "success to start measure." "\x1b[39m") << std::endl;
   }
   else
   {
     // 計測開始できず.
-    ROS_INFO("urg error:%s", urg_error(urg_p));
-    ROS_INFO("fail to start measure.");
-
+    std::cout << boost::format("\x1b[31m" "urg error:%s\n" "fail to get LRF data.\n" "close LRF connection" "\x1b[39m") % urg_error(urg_p) << std::endl;
     urg_close(urg_p);
-    ROS_INFO("close LRF connection.");
     // LRFと切断.
 
     loop_to_connect_LRF(urg_p, connection_type, connect_address_device, connect_port_baudrate, LRF_recconect_hz, timeout_ms);
@@ -193,7 +189,7 @@ static void convert_ros_data(const int size,const long int *length_data,const un
   if(nullptr == length_data || nullptr == intensity_data)
   {
     // ヌルポインタがある.
-    ROS_INFO("include nullptr");
+    std::cout << boost::format("include nullptr.") << std::endl;
     return;
   }
 
@@ -242,8 +238,7 @@ static void loop_to_ensure_memory(const int size, T **data, const int memory_ree
     if(nullptr == *data)
     {
       // メモリ確保できず
-      ROS_INFO("error:%s",std::strerror(errno));
-      ROS_INFO("fail to ensure memory.");
+      std::cout << boost::format("\x1b[31m" "error:%s\n" "fail to ensure memory." "\x1b[39m") % std::strerror(errno) << std::endl;
     }
     else
     {

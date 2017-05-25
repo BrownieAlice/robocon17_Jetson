@@ -294,10 +294,10 @@ static boost::optional<line_detect> convert_line_data(const boost::optional<line
       const double rel_line_y1 = line_position_data->y1 - origin_y;
       // 機体中心から見た直線の点の位置.
 
-      const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / sqrt(line_position_data->length);
+      const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / line_position_data->length;
       // ロボット中心から直線までの距離.
 
-      std::cout << boost::format("distance to line:%3.1f[m]") % line_distance << std::endl;
+      std::cout << boost::format("distance to line:%4.2f[m]") % line_distance << std::endl;
       // 標準入出力に出力.
 
       line_detect tmp_data = {theta, line_distance};
