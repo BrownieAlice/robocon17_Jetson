@@ -159,7 +159,7 @@ static boost::optional<line_position> lsd_detect(const sensor_msgs::LaserScan &m
   convert_position_data(msg, lsdImage, LRF_image_data);
   // LRFデータをx-yデータに変換.
 
-  lineSeg = LineSegmentDetection(lsdImage, 0.4, 1.0, 1.0, 22.5, 0.0, 0.7, 1024, 255.0, NULL);
+  lineSeg = LineSegmentDetection(lsdImage, 0.5, 1.2, 1.0, 22.5, 0.0, 0.7, 1024, 255.0, NULL);
   // 線分検出.
 
   boost::optional<line_position> line_position_data = search_lonngest_line(lineSeg, LRF_image_data, dim, marker_pub, lifetime);
