@@ -54,15 +54,25 @@ namespace
     const ros::Duration lifetime(1/static_cast<double>(loop_hz));
     // 許容する遅れ時間.
 
-    constexpr double lrf_diff_x = 0.4425;
-    constexpr double lrf_diff_y = 0.4698;
+    constexpr double offset = (double)1.2 / 180 * M_PI;
+    // LRFの設置誤差によるオフセット.
+
+    constexpr double lrf_abs_x = 0.4425;
+    constexpr double lrf_abs_y = 0.4698;
+
+    constexpr double lrf_diff_x = lrf_abs_x * cos(-offset) - lrf_abs_y * sin(-offset);
+    constexpr double lrf_diff_y = lrf_abs_x * sin(-offset) + lrf_abs_y * cos(-offset);;
     // LRF座標系での, 中心からみたLRFの位置.
 
     constexpr double sigma = (double)1.0 / 3 / 180 * M_PI;
     // 線分検出による姿勢角の標準偏差.
 
-    constexpr double offset = (double)1.2 / 180 * M_PI;
-    // LRFの設置誤差によるオフセット.
+    constexpr size_t cross_point = 10;
+    // 交差する線分の数.
+
+    constexpr double line_distance_offset = 0.065;
+    // 直線の距離のオフセット.
+
   }
 
   namespace var
@@ -125,7 +135,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan &msg)
   }
   #endif
 
-  const boost::optional<line_position> line_position_data = lsd_detect(msg, param::LRF_image_data, param::dim, var::marker_pub, param::lifetime);
+  boost::optional<line_position> line_position_data = lsd_detect(msg, param::LRF_image_data, param::dim, var::marker_pub, param::lifetime);
   // 線分情報の取得.
 
   boost::optional<line_detect> line_detect_data = convert_line_data(line_position_data, -param::lrf_diff_x, -param::lrf_diff_y, param::min_len, param::offset);
@@ -164,6 +174,16 @@ static boost::optional<line_position> lsd_detect(const sensor_msgs::LaserScan &m
 
   boost::optional<line_position> line_position_data = search_lonngest_line(lineSeg, LRF_image_data, dim, marker_pub, lifetime);
   // 最大の長さの線分を検出.
+
+  line_position_data = check_inside_line(line_position_data, msg, param::cross_point);
+
+  if (!line_position_data)
+  {
+    line_position_data = search_2nd_lonngest_line(lineSeg, LRF_image_data, dim);
+    // 2番目に長いの長さの線分を検出.
+
+    line_position_data = check_inside_line(line_position_data, msg, param::cross_point);
+    }
 
   free_image_double(lsdImage);
   free_ntuple_list(lineSeg);
@@ -259,6 +279,116 @@ static boost::optional<line_position> search_lonngest_line(const ntuple_list lin
   return line_position_data;
 }
 
+static boost::optional<line_position> search_2nd_lonngest_line(const ntuple_list lineSeg, const LRF_image &LRF_image_data, const int dim)
+{
+  // 線分リストから2番目に長いの長さの線分を取得する.
+
+  boost::optional<line_position> line_position_data;
+  // 線分情報の格納.
+
+  boost::optional< unsigned int> longest_num;
+  for (unsigned int i = 0; i < lineSeg->size; i++)
+  {
+    const double x0 = lineSeg->values[1 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+    const double y0 = lineSeg->values[0 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+    const double x1 = lineSeg->values[3 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+    const double y1 = lineSeg->values[2 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+    // 線分情報(ホントの座標系に変換してもいる).
+
+    const double len = sqrt( (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) );
+    // この線分の長さ.
+
+    if ( !line_position_data || line_position_data->length < len )
+    {
+      // 直線情報の更新.
+      const line_position tmp_data = {x0, y0, x1, y1, len};
+      line_position_data = tmp_data;
+      longest_num = i;
+    }
+  }
+
+  if (!longest_num)
+  {
+    return boost::none;
+  }
+
+  line_position_data = boost::none;
+  for (unsigned int i = 0; i < lineSeg->size; i++)
+  {
+    const double x0 = lineSeg->values[1 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+    const double y0 = lineSeg->values[0 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+    const double x1 = lineSeg->values[3 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+    const double y1 = lineSeg->values[2 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+    // 線分情報(ホントの座標系に変換してもいる).
+
+    const double len = sqrt( (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) );
+    // この線分の長さ.
+
+    if ( (!line_position_data || line_position_data->length < len) && i != *longest_num )
+    {
+      // 直線情報の更新.
+      const line_position tmp_data = {x0, y0, x1, y1, len};
+      line_position_data = tmp_data;
+      longest_num = i;
+    }
+  }
+
+  return line_position_data;
+}
+
+static boost::optional<line_position> check_inside_line(const boost::optional<line_position> &line_position_data, const sensor_msgs::LaserScan &msg, const size_t count)
+{
+  // 検出した線分が内側のやつか確認.
+
+  if ( line_position_data )
+  {
+    // 線分情報が存在する.
+
+    const size_t max = msg.ranges.size();
+    const double angle_increment = msg.angle_increment;
+    size_t over_num = 0;
+
+    for(size_t i = 0; i < max && over_num < count ; i++)
+    {
+      over_num += judge_intersected(line_position_data->x0, line_position_data->y0, line_position_data->x1, line_position_data->y1, 0, 0, msg.ranges[i] * cos(angle_increment * i), msg.ranges[i] * sin(angle_increment * i));
+    }
+
+    if (over_num < count)
+    {
+      return boost::none;
+    }
+    else
+    {
+      return line_position_data;
+    }
+
+  }
+  else
+  {
+    return line_position_data;
+  }
+}
+
+static int judge_intersected(const double ax, const double ay, const double bx, const double by, const double cx, const double cy, const double dx, const double dy)
+{
+  // 2つの線分が交点を持つかどうかを調べる.
+
+  const double ta = (cx - dx) * (ay * cy) + (cy - dy) * (cx - ax);
+  const double tb = (cx - dx) * (by - cy) + (cy - dy) * (cx - bx);
+  const double tc = (ax - bx) * (cy - ay) + (ay - by) * (ax - cx);
+  const double td = (ax - bx) * (dy - ay) + (ay - by) * (ax - dx);
+
+  if (tc * td < 0 && ta * tb < 0)
+  {
+    // 交点を持つ
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+
 static boost::optional<line_detect> convert_line_data(const boost::optional<line_position> &line_position_data, const double origin_x, const double origin_y, const double min_len, const double offset)
 {
   // 線分情報を角度と距離の情報に変換.
@@ -294,7 +424,7 @@ static boost::optional<line_detect> convert_line_data(const boost::optional<line
       const double rel_line_y1 = line_position_data->y1 - origin_y;
       // 機体中心から見た直線の点の位置.
 
-      const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / line_position_data->length;
+      const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / line_position_data->length - param::line_distance_offset;
       // ロボット中心から直線までの距離.
 
       std::cout << boost::format("distance to line:%4.2f[m]") % line_distance << std::endl;

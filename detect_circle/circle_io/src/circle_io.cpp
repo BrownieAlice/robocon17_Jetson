@@ -28,13 +28,13 @@ namespace
 
     const Pole pole[pole_num] =
     {
-      Pole( 3.5,  7.075, 0),
-      Pole( 5.5,  7.075, 1),
-      Pole( 7.5,  7.075, 2),
-      Pole( 9.5,  7.075, 3),
-      Pole(11.5,  7.075, 4),
-      Pole( 7.5,  4.075, 5),
-      Pole( 7.5, 10.075, 6)
+      Pole( 3.5,  7.025, 0),
+      Pole( 5.5,  7.025, 1),
+      Pole( 7.5,  7.025, 2),
+      Pole( 9.5,  7.025, 3),
+      Pole(11.5,  7.025, 4),
+      Pole( 7.5,  4.025, 5),
+      Pole( 7.5, 10.025, 6)
     };
     // ポールの配列
 
@@ -142,7 +142,7 @@ static Eigen::Matrix4d TransMatrix(double x, double y)
   return mat;
 }
 
-static void calc_matrix(Eigen::Matrix4d *AbsToLRF, const float x, const float y, const float theta, const float LRF_diff_x, const float LRF_diff_y)
+static void calc_matrix(Eigen::Matrix4d *AbsToLRF, const float x, const float y, const float theta, const float LRF_diff_x, const float LRF_diff_y, const float LRF_diff_theta)
 {
   // 絶対座標系からLRF座標系への同時変換行列の計算
   *AbsToLRF =  Eigen::MatrixXd::Identity(4,4);
@@ -152,6 +152,7 @@ static void calc_matrix(Eigen::Matrix4d *AbsToLRF, const float x, const float y,
   // LRFの座標系のとり方に変換.
   *AbsToLRF = (*AbsToLRF) * TransMatrix(LRF_diff_x,LRF_diff_y);
   // 機体中心からLRF中心に移動.
+  *AbsToLRF = (*AbsToLRF) * RotMatrix(LRF_diff_theta);
 }
 
 static void Sub_Callback(const detect_circle::MBinput& msg)
@@ -236,7 +237,7 @@ static int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_nu
   }
 
   Eigen::Matrix4d AbsToLRF;
-  calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y);
+  calc_matrix(&AbsToLRF, var::x, var::y, var::theta, param::LRF_diff_x, param::LRF_diff_y,  -(double)1.8 / 180 * M_PI);
   // 絶対座標系からLRF座標系への同時変換行列
 
   const Eigen::Vector4d pole_abs = param::pole[watch_pole_num].getVector();
@@ -267,14 +268,14 @@ static int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_nu
 
   write_circle(pole_rel_x, pole_rel_y, param::rad, var::marker_pub);
 
-  //printf("p:%f,q:%f\n", p, q);
+   printf("p:%f,q:%f\n", pole_rel_x, pole_rel_y);
   Eigen::Vector4d pole_rel_modify;
   pole_rel_modify << pole_rel_x, pole_rel_y, 0, 1;
   // 検出後のLRFから見たポールの位置.
 
   const Eigen::Vector4d pole_abs_modify = AbsToLRF * pole_rel_modify;
   // 検出後のポールの絶対位置.
-
+  // std::cout << pole_abs_modify << std::endl;
   Eigen::Matrix4d AbsToModify = TransMatrix(pole_abs(0) - pole_abs_modify(0), pole_abs(1) - pole_abs_modify(1));
 
   Eigen::Vector4d machine_abs;
