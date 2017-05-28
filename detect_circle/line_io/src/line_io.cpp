@@ -67,11 +67,14 @@ namespace
     constexpr double sigma = (double)1.0 / 3 / 180 * M_PI;
     // 線分検出による姿勢角の標準偏差.
 
-    constexpr size_t cross_point = 10;
+    constexpr size_t cross_point = 8;
     // 交差する線分の数.
 
     constexpr double line_distance_offset = 0.065;
     // 直線の距離のオフセット.
+
+    constexpr double line_distance_fail_val = -10;
+    // 直線との距離がわからなかった時に返す値.
 
   }
 
@@ -177,13 +180,18 @@ static boost::optional<line_position> lsd_detect(const sensor_msgs::LaserScan &m
 
   line_position_data = check_inside_line(line_position_data, msg, param::cross_point);
 
-  if (!line_position_data)
+  if (!line_position_data || !line_position_data->inside_line)
   {
-    line_position_data = search_2nd_lonngest_line(lineSeg, LRF_image_data, dim);
+    auto line_position_data_tmp = search_2nd_lonngest_line(lineSeg, LRF_image_data, dim);
     // 2番目に長いの長さの線分を検出.
 
-    line_position_data = check_inside_line(line_position_data, msg, param::cross_point);
+    line_position_data_tmp = check_inside_line(line_position_data_tmp, msg, param::cross_point);
+
+    if (!line_position_data || (!line_position_data->inside_line && line_position_data_tmp->inside_line))
+    {
+      line_position_data = line_position_data_tmp;
     }
+  }
 
   free_image_double(lsdImage);
   free_ntuple_list(lineSeg);
@@ -271,7 +279,7 @@ static boost::optional<line_position> search_lonngest_line(const ntuple_list lin
     {
       // 直線情報の更新.
 
-      const line_position tmp_data = {x0, y0, x1, y1, len};
+      const line_position tmp_data = {x0, y0, x1, y1, len, false};
       line_position_data = tmp_data;
     }
   }
@@ -286,7 +294,7 @@ static boost::optional<line_position> search_2nd_lonngest_line(const ntuple_list
   boost::optional<line_position> line_position_data;
   // 線分情報の格納.
 
-  boost::optional< unsigned int> longest_num;
+  boost::optional<unsigned int> longest_num;
   for (unsigned int i = 0; i < lineSeg->size; i++)
   {
     const double x0 = lineSeg->values[1 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
@@ -301,7 +309,7 @@ static boost::optional<line_position> search_2nd_lonngest_line(const ntuple_list
     if ( !line_position_data || line_position_data->length < len )
     {
       // 直線情報の更新.
-      const line_position tmp_data = {x0, y0, x1, y1, len};
+      const line_position tmp_data = {x0, y0, x1, y1, len, false};
       line_position_data = tmp_data;
       longest_num = i;
     }
@@ -311,25 +319,26 @@ static boost::optional<line_position> search_2nd_lonngest_line(const ntuple_list
   {
     return boost::none;
   }
-
-  line_position_data = boost::none;
-  for (unsigned int i = 0; i < lineSeg->size; i++)
+  else
   {
-    const double x0 = lineSeg->values[1 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
-    const double y0 = lineSeg->values[0 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
-    const double x1 = lineSeg->values[3 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
-    const double y1 = lineSeg->values[2 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
-    // 線分情報(ホントの座標系に変換してもいる).
-
-    const double len = sqrt( (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) );
-    // この線分の長さ.
-
-    if ( (!line_position_data || line_position_data->length < len) && i != *longest_num )
+    line_position_data = boost::none;
+    for (unsigned int i = 0; i < lineSeg->size; i++)
     {
-      // 直線情報の更新.
-      const line_position tmp_data = {x0, y0, x1, y1, len};
-      line_position_data = tmp_data;
-      longest_num = i;
+      const double x0 = lineSeg->values[1 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+      const double y0 = lineSeg->values[0 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+      const double x1 = lineSeg->values[3 + dim * i] * LRF_image_data.x_wid + LRF_image_data.x_min;
+      const double y1 = lineSeg->values[2 + dim * i] * LRF_image_data.y_wid + LRF_image_data.y_min;
+      // 線分情報(ホントの座標系に変換してもいる).
+
+      const double len = sqrt( (x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) );
+      // この線分の長さ.
+
+      if ( (!line_position_data || line_position_data->length < len) && i != *longest_num )
+      {
+        // 直線情報の更新.
+        const line_position tmp_data = {x0, y0, x1, y1, len, false};
+        line_position_data = tmp_data;
+      }
     }
   }
 
@@ -355,11 +364,13 @@ static boost::optional<line_position> check_inside_line(const boost::optional<li
 
     if (over_num < count)
     {
-      return boost::none;
+      return line_position_data;
     }
     else
     {
-      return line_position_data;
+      boost::optional<line_position> return_line_position_data = line_position_data;
+      return_line_position_data->inside_line = true;
+      return return_line_position_data;
     }
 
   }
@@ -424,7 +435,15 @@ static boost::optional<line_detect> convert_line_data(const boost::optional<line
       const double rel_line_y1 = line_position_data->y1 - origin_y;
       // 機体中心から見た直線の点の位置.
 
-      const double line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / line_position_data->length - param::line_distance_offset;
+      double line_distance;
+      if (line_position_data->inside_line)
+      {
+        line_distance = fabs(rel_line_x0 * rel_line_y1 - rel_line_x1 * rel_line_y0) / line_position_data->length - param::line_distance_offset;
+      }
+      else
+      {
+        line_distance = param::line_distance_fail_val;
+      }
       // ロボット中心から直線までの距離.
 
       std::cout << boost::format("distance to line:%4.2f[m]") % line_distance << std::endl;
@@ -498,7 +517,15 @@ static void publish_line_detect(const boost::optional<line_detect> &line_detect_
     Jline_pub.publish(*msg);
 
     std::cout << boost::format("robot theta:%+4.1f[deg]") % (line_detect_data->theta * 180 / M_PI) << std::endl;
-    std::cout << boost::format("\x1b[36m" "success to detect line." "\x1b[39m") << std::endl;
+
+    if (line_detect_data->line_distance == param::line_distance_fail_val)
+    {
+      std::cout << boost::format("\x1b[33m" "success to calc only theta." "\x1b[39m") << std::endl;
+    }
+    else
+    {
+      std::cout << boost::format("\x1b[36m" "success to detect line." "\x1b[39m") << std::endl;
+    }
   }
   else
   {

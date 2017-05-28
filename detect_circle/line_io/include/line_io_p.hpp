@@ -44,6 +44,7 @@ typedef struct{
   double x1;
   double y1;
   double length;
+  bool inside_line;
 } line_position;
 // 線分の2点と長さの情報.
 
