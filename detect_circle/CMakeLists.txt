@@ -97,4 +97,6 @@ if(NOT MAKE_ONLY_MSG)
   add_subdirectory(urg_connection)
 
   add_subdirectory(line_io)
+
+  add_subdirectory(disp_situation)
 endif(NOT MAKE_ONLY_MSG)
