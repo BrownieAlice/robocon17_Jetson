@@ -21,7 +21,7 @@ namespace
 {
   namespace param
   {
-    constexpr int loop_hz = 5;
+    constexpr int loop_hz = 2;
   }
   namespace var
   {
@@ -78,7 +78,7 @@ static void usbLRF_callback(const sensor_msgs::LaserScan& msg)
 
 static void MBdata_callback(const detect_circle::MBinput& msg)
 {
-  var::MBdata_flag = false;
+  var::MBdata_flag = true;
   return;
 }
 
