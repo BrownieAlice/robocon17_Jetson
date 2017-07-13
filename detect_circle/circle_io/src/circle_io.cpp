@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <math.h>
 #include <iostream>
+#include <boost/format.hpp>
 #include "ros/ros.h"
 #include "detect_circle/MBinput.h"
 #include "detect_circle/Jcircle.h"
@@ -41,7 +42,8 @@ namespace
     constexpr float hough_thr_coe = 0.6;
     // ハフ返還時の閾値. 1[m]あたりの係数.
 
-    hough_param_str hough_param = {
+    hough_param_str hough_param =
+    {
       0.03f, // x_wid.   ハフ変換する際のxの間隔.
       0.03f, // y_wid.   ハフ変換する際のyの間隔.
       64,   // x_num.   ハフ変換する際のxの個数.
@@ -268,7 +270,7 @@ static int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_nu
 
   write_circle(pole_rel_x, pole_rel_y, param::rad, var::marker_pub);
 
-   printf("p:%f,q:%f\n", pole_rel_x, pole_rel_y);
+  std::cout << boost::format("p:%f,q:%f") % pole_rel_x % pole_rel_y << std::endl;
   Eigen::Vector4d pole_rel_modify;
   pole_rel_modify << pole_rel_x, pole_rel_y, 0, 1;
   // 検出後のLRFから見たポールの位置.
@@ -280,19 +282,23 @@ static int SearchPole(const sensor_msgs::LaserScan& msg, const int watch_pole_nu
 
   Eigen::Vector4d machine_abs;
   machine_abs << var::x, var::y, 0, 1;
-  // 機体の自己位置
+  // 機体の自己位置.
 
   Eigen::Vector4d machine_abs_modify = AbsToModify * machine_abs;
-  // 機体の修正後の自己位置
+  // 機体の修正後の自己位置.
 
-  std::cout << "x:" << machine_abs_modify(0) << " y:" << machine_abs_modify(1) << std::endl;
+  std::cout <<  boost::format("x:%f,y:%f") % machine_abs_modify(0) % machine_abs_modify(1) << std::endl;
 
   int in_sigma = isInSigma(machine_abs_modify(0), machine_abs_modify(1), var::x, var::y, var::x_sigma, var::y_sigma);
 
   if (0 == in_sigma){
     var::msg.MB_pole = watch_pole_num;
+    /*
     var::msg.x = machine_abs_modify(0);
     var::msg.y = machine_abs_modify(1);
+    */
+    var::msg.x = machine_abs_modify(0) - var::x;
+    var::msg.y = machine_abs_modify(1) - var::y;
     var::msg.x_sigma = param::x_sigma;
     var::msg.y_sigma = param::y_sigma;
     var::msg.stamp = ros::Time::now();

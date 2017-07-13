@@ -152,7 +152,7 @@ static void Laser_Callback(const sensor_msgs::LaserScan &msg)
 
   ros::Time end = ros::Time::now();
 
-  publish_line_detect(line_detect_data, param::sigma, &var::msg, var::Jline_pub);
+  publish_line_detect(line_detect_data, param::sigma, &var::msg, var::Jline_pub, *var::MB_info_datas);
   // 発行.
 
   std::cout << boost::format("time:%5.2f[ms]") %  ((end - begin).toSec() * 1000) << std::endl;
@@ -503,14 +503,14 @@ static boost::optional<line_detect> sigma_check(const boost::optional<line_detec
   return line_detect_data;
 }
 
-static void publish_line_detect(const boost::optional<line_detect> &line_detect_data, const double J_sigma, detect_circle::Jline *msg, const ros::Publisher &Jline_pub)
+static void publish_line_detect(const boost::optional<line_detect> &line_detect_data, const double J_sigma, detect_circle::Jline *msg, const ros::Publisher &Jline_pub, const MB_info &MB_info_datas)
 {
   // ロボットの自己位置と木枠までの距離を発行.
 
   if(line_detect_data)
   {
     // 情報があった.
-    msg->theta = line_detect_data->theta;
+    msg->theta = line_detect_data->theta - MB_info_datas.MB_theta;
     msg->line_distance = line_detect_data->line_distance;
     msg->sigma = J_sigma;
     msg->stamp = ros::Time::now();

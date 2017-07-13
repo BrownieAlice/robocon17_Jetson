@@ -59,7 +59,7 @@ static boost::optional<line_position> check_inside_line(const boost::optional<li
 static int judge_intersected(const double ax, const double ay, const double bx, const double by, const double cx, const double cy, const double dx, const double dy);
 static boost::optional<line_detect> modify_for_field(boost::optional<line_detect> line_detect_data, const char field_color);
 static boost::optional<line_detect> sigma_check(const boost::optional<line_detect> &line_detect_data, const double MB_theta, const double MB_sigma);
-static void publish_line_detect(const boost::optional<line_detect> &line_detect_data, const double J_sigma, detect_circle::Jline *msg, const ros::Publisher &Jline_pub);
+static void publish_line_detect(const boost::optional<line_detect> &line_detect_data, const double J_sigma, detect_circle::Jline *msg, const ros::Publisher &Jline_pub, const MB_info &MB_info_datas);
 
 #ifndef M_PI
 #define M_PI 3.1415
